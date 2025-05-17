@@ -1,10 +1,72 @@
-const Login = () => {
+import { useState } from 'react';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
+import { doc, setDoc } from 'firebase/firestore';
+import { db } from '../firebase'; // Adjust the import path according to your structure
+
+const AuthForm = () => {
+  const [isLogin, setIsLogin] = useState(true);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [displayName, setDisplayName] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const auth = getAuth();
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      if (isLogin) {
+        // Login logic
+        await signInWithEmailAndPassword(auth, email, password);
+      } else {
+        // Signup logic
+        const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+        
+        // Add user data to Firestore
+        await setDoc(doc(db, 'users', userCredential.user.uid), {
+          displayName,
+          email,
+          password,
+          createdAt: new Date(),
+        });
+      }
+    } catch (err) {
+      setError(err.message);
+      setLoading(false);
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-100 px-4">
       <div className="max-w-md w-full bg-white p-8 rounded-2xl shadow-xl">
-        <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">Login to Your Account</h2>
+        <h2 className="text-2xl font-bold text-gray-800 text-center mb-6">
+          {isLogin ? 'Login to Your Account' : 'Create New Account'}
+        </h2>
         
-        <form className="space-y-5">
+        {error && <div className="mb-4 text-red-500 text-sm">{error}</div>}
+
+        <form className="space-y-5" onSubmit={handleSubmit}>
+          {!isLogin && (
+            <div>
+              <label htmlFor="displayName" className="block text-sm font-medium text-gray-600 mb-1">
+                Display Name
+              </label>
+              <input
+                type="text"
+                id="displayName"
+                value={displayName}
+                onChange={(e) => setDisplayName(e.target.value)}
+                placeholder="Enter your name"
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                required
+              />
+            </div>
+          )}
+
           <div>
             <label htmlFor="email" className="block text-sm font-medium text-gray-600 mb-1">
               Email Address
@@ -12,6 +74,8 @@ const Login = () => {
             <input
               type="email"
               id="email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               placeholder="example@domain.com"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
@@ -25,35 +89,49 @@ const Login = () => {
             <input
               type="password"
               id="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
               placeholder="Enter your password"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
+              minLength="6"
             />
           </div>
 
-          <div className="flex items-center justify-between text-sm text-gray-600">
-            <label className="flex items-center">
-              <input type="checkbox" className="mr-2" />
-              Remember me
-            </label>
-            <a href="#" className="text-blue-600 hover:underline">Forgot password?</a>
-          </div>
+          {isLogin && (
+            <div className="flex items-center justify-between text-sm text-gray-600">
+              <label className="flex items-center">
+                <input type="checkbox" className="mr-2" />
+                Remember me
+              </label>
+              <a href="#" className="text-blue-600 hover:underline">Forgot password?</a>
+            </div>
+          )}
 
           <button
             type="submit"
-            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition duration-300"
+            disabled={loading}
+            className="w-full bg-green-600 text-white py-2 rounded-lg hover:bg-green-700 transition duration-300 disabled:opacity-50"
           >
-            Login
+            {loading ? 'Processing...' : (isLogin ? 'Login' : 'Sign Up')}
           </button>
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          Don’t have an account?
-          <a href="#" className="text-blue-600 hover:underline ml-1">Sign up</a>
+          {isLogin ? "Don’t have an account?" : "Already have an account?"}
+          <button
+            onClick={() => {
+              setIsLogin(!isLogin);
+              setError('');
+            }}
+            className="text-blue-600 hover:underline ml-1 focus:outline-none"
+          >
+            {isLogin ? 'Sign up' : 'Login'}
+          </button>
         </p>
       </div>
     </div>
   );
 };
 
-export default Login;
+export default AuthForm;

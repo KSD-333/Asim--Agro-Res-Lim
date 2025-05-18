@@ -1,21 +1,43 @@
 import React, { useState, useEffect } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { Filter, Search, X } from 'lucide-react';
-import { products, getAllCategories } from '../data/products';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../firebase';
 import ProductCard from '../components/products/ProductCard';
 import { Product } from '../types';
 
 const ProductsPage: React.FC = () => {
   const [searchParams, setSearchParams] = useSearchParams();
-  const [filteredProducts, setFilteredProducts] = useState<Product[]>(products);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [showFilters, setShowFilters] = useState(false);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Set categories
-    setCategories(getAllCategories());
+    const fetchProducts = async () => {
+      try {
+        const querySnapshot = await getDocs(collection(db, 'products'));
+        const productsList = querySnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Product[];
+        setProducts(productsList);
+        setFilteredProducts(productsList);
+        
+        // Extract unique categories
+        const uniqueCategories = Array.from(new Set(productsList.map(product => product.category)));
+        setCategories(uniqueCategories);
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching products:', error);
+        setLoading(false);
+      }
+    };
+
+    fetchProducts();
     
     // Handle URL category filter
     const categoryParam = searchParams.get('category');
@@ -41,7 +63,7 @@ const ProductsPage: React.FC = () => {
     }
     
     setFilteredProducts(result);
-  }, [searchTerm, selectedCategory]);
+  }, [searchTerm, selectedCategory, products]);
 
   const handleCategoryChange = (category: string | null) => {
     setSelectedCategory(category);
@@ -61,6 +83,17 @@ const ProductsPage: React.FC = () => {
     searchParams.delete('category');
     setSearchParams(searchParams);
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen pt-20 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Loading products...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen pt-20">

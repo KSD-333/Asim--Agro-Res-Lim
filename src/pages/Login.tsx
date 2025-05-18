@@ -1,7 +1,8 @@
 import { useState } from 'react';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword } from 'firebase/auth';
-import { doc, setDoc } from 'firebase/firestore';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Adjust the import path according to your structure
+import { useNavigate } from 'react-router-dom';
 
 const AuthForm = () => {
   const [isLogin, setIsLogin] = useState(true);
@@ -10,10 +11,10 @@ const AuthForm = () => {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-
+  const navigate = useNavigate();
   const auth = getAuth();
 
-  const handleSubmit = async (e) => {
+  const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     setError('');
     setLoading(true);
@@ -21,7 +22,18 @@ const AuthForm = () => {
     try {
       if (isLogin) {
         // Login logic
-        await signInWithEmailAndPassword(auth, email, password);
+        const userCredential = await signInWithEmailAndPassword(auth, email, password);
+        const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
+        
+        if (userDoc.exists()) {
+          const userData = userDoc.data();
+          if (userData.isAdmin) {
+            navigate('/dealers/login/admin');
+          } else {
+            navigate('/dealers');
+          }
+        }
+        console.log('User logged in successfully');
       } else {
         // Signup logic
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -30,11 +42,18 @@ const AuthForm = () => {
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           displayName,
           email,
-          password,
           createdAt: new Date(),
+          role: 'user', // Default role
+          isAdmin: false // Explicit admin flag
         });
+        // Optionally, you can update the user's display name in Firebase Auth profile
+        if (auth.currentUser) {
+          await updateProfile(auth.currentUser, { displayName });
+        }
+        navigate('/dealers');
       }
-    } catch (err) {
+      setLoading(false);
+    } catch (err: any) {
       setError(err.message);
       setLoading(false);
     }
@@ -118,7 +137,7 @@ const AuthForm = () => {
         </form>
 
         <p className="mt-6 text-center text-sm text-gray-600">
-          {isLogin ? "Don’t have an account?" : "Already have an account?"}
+          {isLogin ? "Don't have an account?" : "Already have an account?"}
           <button
             onClick={() => {
               setIsLogin(!isLogin);

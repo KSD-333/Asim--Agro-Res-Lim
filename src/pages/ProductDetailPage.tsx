@@ -22,28 +22,93 @@ const ProductDetailPage: React.FC = () => {
   const [newReview, setNewReview] = useState({
     rating: 5,
     comment: '',
-    images: [] as File[]
+    images: [] as File[],
+    userName: user?.displayName || ''
   });
   const [uploading, setUploading] = useState(false);
   const [showToast, setShowToast] = useState(false);
   const [toastMessage, setToastMessage] = useState('');
 
+  const fetchReviews = async () => {
+    if (!id) {
+      console.error('No product ID available for fetching reviews');
+      return;
+    }
+
+    try {
+      console.log('Starting to fetch reviews for product:', id);
+      
+      // Create a query to get reviews for this product
+      const reviewsRef = collection(db, 'reviews');
+      const q = query(
+        reviewsRef,
+        where('productId', '==', id)
+        // Temporarily removing orderBy to avoid index requirement
+        // orderBy('createdAt', 'desc')
+      );
+
+      console.log('Executing reviews query...');
+      const querySnapshot = await getDocs(q);
+      console.log('Query completed. Found reviews:', querySnapshot.size);
+
+      if (querySnapshot.empty) {
+        console.log('No reviews found for this product');
+        setReviews([]);
+        return;
+      }
+
+      // Process the reviews and sort them in memory
+      const reviewsList = querySnapshot.docs
+        .map(doc => {
+          const data = doc.data();
+          console.log('Processing review:', doc.id, data);
+          return {
+            id: doc.id,
+            productId: data.productId,
+            userId: data.userId,
+            userName: data.userName || 'Anonymous',
+            rating: data.rating || 0,
+            comment: data.comment || '',
+            images: data.images || [],
+            createdAt: data.createdAt?.toDate() || new Date()
+          };
+        })
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by date in memory
+
+      console.log('Successfully processed reviews:', reviewsList);
+      setReviews(reviewsList);
+    } catch (error) {
+      console.error('Detailed error fetching reviews:', error);
+      setError('Failed to load reviews. Please try again later.');
+    }
+  };
+
   useEffect(() => {
-    const fetchProduct = async () => {
+    const loadData = async () => {
       if (!id) {
+        console.error('Product ID is missing');
         setError('Product ID is missing');
         setLoading(false);
         return;
       }
 
+      setLoading(true);
+      setError(null);
+
       try {
-        console.log('Fetching product with ID:', id);
-        const productDoc = await getDoc(doc(db, 'products', id));
+        console.log('Starting to load product with ID:', id);
+        
+        // Fetch product
+        const productRef = doc(db, 'products', id);
+        console.log('Product reference created:', productRef.path);
+        
+        const productDoc = await getDoc(productRef);
+        console.log('Product document fetched:', productDoc.exists() ? 'exists' : 'does not exist');
         
         if (productDoc.exists()) {
           const productData = productDoc.data();
-          console.log('Product data:', productData);
-          // Ensure all required fields are present with default values
+          console.log('Raw product data:', productData);
+          
           const formattedProduct = {
             id: productDoc.id,
             name: productData.name || '',
@@ -63,42 +128,37 @@ const ProductDetailPage: React.FC = () => {
             benefits: productData.benefits || [],
             stockAvailability: productData.stockAvailability || false
           };
+          
+          console.log('Formatted product data:', formattedProduct);
           setProduct(formattedProduct as Product);
+          
+          // Fetch reviews after product is loaded
+          console.log('Product loaded successfully, fetching reviews...');
+          await fetchReviews();
         } else {
-          console.log('No product found with ID:', id);
-          setError('Product not found');
+          console.error('No product found with ID:', id);
+          setError('Product not found. Please check the URL and try again.');
         }
       } catch (error) {
-        console.error('Error fetching product:', error);
-        setError('Failed to load product details');
+        console.error('Detailed error loading product:', error);
+        setError('Failed to load product details. Please try again later.');
       } finally {
         setLoading(false);
       }
     };
 
-    const fetchReviews = async () => {
-      if (!id) return;
-      try {
-        const reviewsQuery = query(
-          collection(db, 'reviews'),
-          where('productId', '==', id),
-          orderBy('createdAt', 'desc')
-        );
-        const reviewsSnapshot = await getDocs(reviewsQuery);
-        const reviewsList = reviewsSnapshot.docs.map(doc => ({
-          id: doc.id,
-          ...doc.data()
-        })) as Review[];
-        setReviews(reviewsList);
-      } catch (error) {
-        console.error('Error fetching reviews:', error);
-        // Don't set error state for reviews, just log it
-      }
-    };
-
-    fetchProduct();
-    fetchReviews();
+    loadData();
   }, [id]);
+
+  useEffect(() => {
+    // Update userName when user changes
+    if (user?.displayName) {
+      setNewReview(prev => ({
+        ...prev,
+        userName: user.displayName || 'Anonymous'
+      }));
+    }
+  }, [user]);
 
   const handleAddToCart = () => {
     if (!product) return;
@@ -132,53 +192,67 @@ const ProductDetailPage: React.FC = () => {
 
   const handleSubmitReview = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!user || !product) return;
+    if (!user) {
+      setShowToast(true);
+      setToastMessage('Please login to submit a review');
+      return;
+    }
+
+    if (!product) {
+      setShowToast(true);
+      setToastMessage('Product information is missing');
+      return;
+    }
+
+    if (!newReview.comment.trim()) {
+      setShowToast(true);
+      setToastMessage('Please enter your review comment');
+      return;
+    }
 
     setUploading(true);
     try {
       // Upload images first
-      const imageUrls = await Promise.all(
-        newReview.images.map(async (file) => {
-          const storageRef = ref(storage, `reviews/${product.id}/${Date.now()}_${file.name}`);
-          const snapshot = await uploadBytes(storageRef, file);
-          return getDownloadURL(snapshot.ref);
-        })
-      );
+      let imageUrls: string[] = [];
+      if (newReview.images.length > 0) {
+        imageUrls = await Promise.all(
+          newReview.images.map(async (file) => {
+            const storageRef = ref(storage, `reviews/${product.id}/${Date.now()}_${file.name}`);
+            const snapshot = await uploadBytes(storageRef, file);
+            return getDownloadURL(snapshot.ref);
+          })
+        );
+      }
 
-      // Create review document
+      // Create review document with all required fields
       const reviewData = {
         productId: product.id,
         userId: user.uid,
-        userName: user.displayName || 'Anonymous',
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous',
         rating: newReview.rating,
-        comment: newReview.comment,
+        comment: newReview.comment.trim(),
         images: imageUrls,
         createdAt: new Date()
       };
 
-      await addDoc(collection(db, 'reviews'), reviewData);
-      
-      // Reset form and show success message
+      // Add the review to Firestore
+      const docRef = await addDoc(collection(db, 'reviews'), reviewData);
+      console.log('Review added with ID:', docRef.id);
+
+      // Reset form
       setNewReview({
         rating: 5,
         comment: '',
-        images: []
+        images: [],
+        userName: user.displayName || user.email?.split('@')[0] || 'Anonymous'
       });
+
+      // Show success message
       setShowToast(true);
       setToastMessage('Review submitted successfully!');
-      
+
       // Refresh reviews
-      const reviewsQuery = query(
-        collection(db, 'reviews'),
-        where('productId', '==', product.id),
-        orderBy('createdAt', 'desc')
-      );
-      const reviewsSnapshot = await getDocs(reviewsQuery);
-      const reviewsList = reviewsSnapshot.docs.map(doc => ({
-        id: doc.id,
-        ...doc.data()
-      })) as Review[];
-      setReviews(reviewsList);
+      await fetchReviews();
     } catch (error) {
       console.error('Error submitting review:', error);
       setShowToast(true);
@@ -209,9 +283,17 @@ const ProductDetailPage: React.FC = () => {
             <AlertCircle className="h-16 w-16 text-error-500 mx-auto mb-4" />
             <h2 className="text-2xl font-semibold mb-4">Error Loading Product</h2>
             <p className="text-gray-600 mb-8">{error}</p>
-            <Link to="/products" className="btn btn-primary">
-              Browse Products
-            </Link>
+            <div className="space-y-4">
+              <Link to="/products" className="btn btn-primary block">
+                Browse Products
+              </Link>
+              <button 
+                onClick={() => window.location.reload()} 
+                className="btn btn-secondary block"
+              >
+                Try Again
+              </button>
+            </div>
           </div>
         </div>
       </div>
@@ -362,14 +444,6 @@ const ProductDetailPage: React.FC = () => {
                 Add to Cart
               </button>
             </div>
-            
-            {/* Availability */}
-            <div className="flex items-center">
-              <div className={`h-3 w-3 rounded-full ${product.stockAvailability ? 'bg-success-500' : 'bg-error-500'} mr-2`}></div>
-              <span className={product.stockAvailability ? 'text-success-700' : 'text-error-700'}>
-                {product.stockAvailability ? 'In stock' : 'Out of stock'}
-              </span>
-            </div>
           </div>
         </div>
 
@@ -377,8 +451,8 @@ const ProductDetailPage: React.FC = () => {
         <div className="mt-16">
           <h2 className="text-2xl font-bold mb-8">Customer Reviews</h2>
           
-          {/* Review Form */}
-          {user && (
+          {/* Review Form - Only show for logged in users */}
+          {user ? (
             <div className="bg-white p-6 rounded-lg shadow-lg mb-8">
               <h3 className="text-lg font-semibold mb-4">Write a Review</h3>
               <form onSubmit={handleSubmitReview} className="space-y-4">
@@ -417,7 +491,7 @@ const ProductDetailPage: React.FC = () => {
                 </div>
                 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Images</label>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">Upload Images (Optional)</label>
                   <div className="flex items-center space-x-4">
                     <label className="cursor-pointer">
                       <div className="flex items-center justify-center w-32 h-32 border-2 border-dashed border-gray-300 rounded-lg hover:border-primary-500 transition-colors">
@@ -455,11 +529,18 @@ const ProductDetailPage: React.FC = () => {
                 <button
                   type="submit"
                   disabled={uploading}
-                  className="btn btn-primary"
+                  className="btn btn-primary w-full"
                 >
                   {uploading ? 'Submitting...' : 'Submit Review'}
                 </button>
               </form>
+            </div>
+          ) : (
+            <div className="bg-gray-50 p-6 rounded-lg mb-8 text-center">
+              <p className="text-gray-600 mb-4">Please login to write a review</p>
+              <Link to="/login" className="btn btn-primary">
+                Login to Review
+              </Link>
             </div>
           )}
           
@@ -470,22 +551,36 @@ const ProductDetailPage: React.FC = () => {
                 <div key={review.id} className="bg-white p-6 rounded-lg shadow">
                   <div className="flex items-center justify-between mb-4">
                     <div>
-                      <h4 className="font-semibold">{review.userName}</h4>
+                      <h4 className="font-semibold text-lg">{review.userName || 'Anonymous'}</h4>
                       <div className="flex items-center mt-1">
                         {[1, 2, 3, 4, 5].map((star) => (
                           <Star
                             key={star}
-                            className={`h-4 w-4 ${
+                            className={`h-5 w-5 ${
                               star <= review.rating
                                 ? 'text-yellow-400 fill-current'
                                 : 'text-gray-300'
                             }`}
                           />
                         ))}
+                        <span className="ml-2 text-sm text-gray-500">
+                          {review.rating}/5
+                        </span>
                       </div>
                     </div>
                     <span className="text-sm text-gray-500">
-                      {new Date(review.createdAt).toLocaleDateString()}
+                      {review.createdAt instanceof Date 
+                        ? review.createdAt.toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })
+                        : new Date(review.createdAt).toLocaleDateString('en-US', {
+                            year: 'numeric',
+                            month: 'long',
+                            day: 'numeric'
+                          })
+                      }
                     </span>
                   </div>
                   <p className="text-gray-700 mb-4">{review.comment}</p>

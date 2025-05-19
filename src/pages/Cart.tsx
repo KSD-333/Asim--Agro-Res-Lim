@@ -15,12 +15,22 @@ interface ShippingAddress {
   phone: string;
 }
 
+interface ValidationErrors {
+  name?: string;
+  address?: string;
+  city?: string;
+  state?: string;
+  pincode?: string;
+  phone?: string;
+}
+
 const Cart: React.FC = () => {
   const { items, removeItem, updateQuantity, createOrder } = useCart();
   const navigate = useNavigate();
   const auth = getAuth();
   const [loading, setLoading] = useState(false);
   const [savingAddress, setSavingAddress] = useState(false);
+  const [validationErrors, setValidationErrors] = useState<ValidationErrors>({});
   const [shippingAddress, setShippingAddress] = useState<ShippingAddress>({
     name: '',
     address: '',
@@ -46,8 +56,61 @@ const Cart: React.FC = () => {
     loadSavedAddress();
   }, [auth.currentUser]);
 
+  const validateAddress = (address: ShippingAddress): ValidationErrors => {
+    const errors: ValidationErrors = {};
+
+    // Name validation
+    if (!address.name.trim()) {
+      errors.name = 'Name is required';
+    } else if (address.name.length < 3) {
+      errors.name = 'Name must be at least 3 characters long';
+    }
+
+    // Address validation
+    if (!address.address.trim()) {
+      errors.address = 'Address is required';
+    } else if (address.address.length < 10) {
+      errors.address = 'Please enter a complete address';
+    }
+
+    // City validation
+    if (!address.city.trim()) {
+      errors.city = 'City is required';
+    }
+
+    // State validation
+    if (!address.state.trim()) {
+      errors.state = 'State is required';
+    }
+
+    // Pincode validation
+    if (!address.pincode.trim()) {
+      errors.pincode = 'Pincode is required';
+    } else if (!/^\d{6}$/.test(address.pincode)) {
+      errors.pincode = 'Pincode must be 6 digits';
+    }
+
+    // Phone validation
+    if (!address.phone.trim()) {
+      errors.phone = 'Phone number is required';
+    } else if (!/^\d{10}$/.test(address.phone)) {
+      errors.phone = 'Phone number must be 10 digits';
+    }
+
+    return errors;
+  };
+
   const handleSaveAddress = async () => {
     if (!auth.currentUser) return;
+    
+    // Validate the address
+    const errors = validateAddress(shippingAddress);
+    setValidationErrors(errors);
+
+    // If there are validation errors, don't proceed
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
     
     setSavingAddress(true);
     try {
@@ -55,6 +118,7 @@ const Cart: React.FC = () => {
         shippingAddress
       }, { merge: true });
       alert('Shipping address saved successfully!');
+      setValidationErrors({}); // Clear any previous errors
     } catch (error) {
       console.error('Error saving address:', error);
       alert('Failed to save shipping address. Please try again.');
@@ -69,12 +133,28 @@ const Cart: React.FC = () => {
       ...prev,
       [name]: value
     }));
+    // Clear validation error for this field when user starts typing
+    if (validationErrors[name as keyof ValidationErrors]) {
+      setValidationErrors(prev => ({
+        ...prev,
+        [name]: undefined
+      }));
+    }
   };
 
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
-    setLoading(true);
+    
+    // Validate the address before checkout
+    const errors = validateAddress(shippingAddress);
+    setValidationErrors(errors);
 
+    // If there are validation errors, don't proceed
+    if (Object.keys(errors).length > 0) {
+      return;
+    }
+
+    setLoading(true);
     try {
       const orderId = await createOrder(shippingAddress);
       navigate(`/order-confirmation/${orderId}`);
@@ -112,27 +192,40 @@ const Cart: React.FC = () => {
               <div className="flex-grow">
                 <h3 className="font-medium">{item.name}</h3>
                 <p className="text-sm text-gray-600">Size: {item.size}</p>
+                {/* NPK Information */}
+                {item.nutrients && (
+                  <div className="mt-2 flex items-center space-x-4">
+                    <div className="flex items-center">
+                      <span className="text-blue-500 font-medium">N: {item.nutrients.nitrogen}%</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-green-500 font-medium">P: {item.nutrients.phosphorus}%</span>
+                    </div>
+                    <div className="flex items-center">
+                      <span className="text-purple-500 font-medium">K: {item.nutrients.potassium}%</span>
+                    </div>
+                  </div>
+                )}
                 <div className="flex items-center space-x-2 mt-2">
                   <button
                     onClick={() => updateQuantity(item.id, Math.max(0, item.quantity - 1))}
-                    className="p-1 hover:bg-gray-100 rounded"
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
                   >
                     <Minus className="w-4 h-4" />
                   </button>
-                  <span>{item.quantity}</span>
+                  <span className="w-8 text-center">{item.quantity}</span>
                   <button
                     onClick={() => updateQuantity(item.id, item.quantity + 1)}
-                    className="p-1 hover:bg-gray-100 rounded"
+                    className="p-1 hover:bg-gray-100 rounded-full transition-colors"
                   >
                     <Plus className="w-4 h-4" />
                   </button>
                 </div>
               </div>
               <div className="text-right">
-                <p className="font-medium">{item.price * item.quantity}</p>
                 <button
                   onClick={() => removeItem(item.id)}
-                  className="text-red-500 hover:text-red-700 mt-2"
+                  className="text-red-500 hover:text-red-700 mt-2 transition-colors"
                 >
                   <Trash2 className="w-5 h-5" />
                 </button>
@@ -165,9 +258,14 @@ const Cart: React.FC = () => {
                 value={shippingAddress.name}
                 onChange={handleInputChange}
                 required
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                className={`block w-full px-4 py-2 rounded-md border ${
+                  validationErrors.name ? 'border-red-500' : 'border-gray-300'
+                } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                 placeholder="Enter your full name"
               />
+              {validationErrors.name && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.name}</p>
+              )}
             </div>
             <div className="bg-gray-50 p-4 rounded-lg">
               <label className="block text-sm font-semibold text-gray-700 mb-2">Address</label>
@@ -177,9 +275,14 @@ const Cart: React.FC = () => {
                 value={shippingAddress.address}
                 onChange={handleInputChange}
                 required
-                className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                className={`block w-full px-4 py-2 rounded-md border ${
+                  validationErrors.address ? 'border-red-500' : 'border-gray-300'
+                } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                 placeholder="Enter your street address"
               />
+              {validationErrors.address && (
+                <p className="mt-1 text-sm text-red-600">{validationErrors.address}</p>
+              )}
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="bg-gray-50 p-4 rounded-lg">
@@ -190,9 +293,14 @@ const Cart: React.FC = () => {
                   value={shippingAddress.city}
                   onChange={handleInputChange}
                   required
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                  className={`block w-full px-4 py-2 rounded-md border ${
+                    validationErrors.city ? 'border-red-500' : 'border-gray-300'
+                  } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                   placeholder="Enter your city"
                 />
+                {validationErrors.city && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.city}</p>
+                )}
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">State</label>
@@ -202,9 +310,14 @@ const Cart: React.FC = () => {
                   value={shippingAddress.state}
                   onChange={handleInputChange}
                   required
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                  className={`block w-full px-4 py-2 rounded-md border ${
+                    validationErrors.state ? 'border-red-500' : 'border-gray-300'
+                  } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                   placeholder="Enter your state"
                 />
+                {validationErrors.state && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.state}</p>
+                )}
               </div>
             </div>
             <div className="grid grid-cols-2 gap-4">
@@ -216,9 +329,14 @@ const Cart: React.FC = () => {
                   value={shippingAddress.pincode}
                   onChange={handleInputChange}
                   required
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                  className={`block w-full px-4 py-2 rounded-md border ${
+                    validationErrors.pincode ? 'border-red-500' : 'border-gray-300'
+                  } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                   placeholder="Enter your pincode"
                 />
+                {validationErrors.pincode && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.pincode}</p>
+                )}
               </div>
               <div className="bg-gray-50 p-4 rounded-lg">
                 <label className="block text-sm font-semibold text-gray-700 mb-2">Phone</label>
@@ -228,9 +346,14 @@ const Cart: React.FC = () => {
                   value={shippingAddress.phone}
                   onChange={handleInputChange}
                   required
-                  className="block w-full rounded-md border-gray-300 shadow-sm focus:border-green-500 focus:ring-green-500 bg-white"
+                  className={`block w-full px-4 py-2 rounded-md border ${
+                    validationErrors.phone ? 'border-red-500' : 'border-gray-300'
+                  } shadow-sm focus:border-green-500 focus:ring-2 focus:ring-green-500 focus:ring-opacity-50 bg-white transition-colors`}
                   placeholder="Enter your phone number"
                 />
+                {validationErrors.phone && (
+                  <p className="mt-1 text-sm text-red-600">{validationErrors.phone}</p>
+                )}
               </div>
             </div>
             <button

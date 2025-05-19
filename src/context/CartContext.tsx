@@ -10,6 +10,12 @@ interface CartItem {
   quantity: number;
   size: string;
   image: string;
+  nutrients?: {
+    nitrogen: number;
+    phosphorus: number;
+    potassium: number;
+    otherNutrients?: Record<string, number>;
+  };
 }
 
 interface Order {
@@ -101,9 +107,12 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const createOrder = async (shippingAddress: Order['shippingAddress']): Promise<string> => {
     if (!user) throw new Error('User must be logged in to create an order');
 
+    const totalAmount = items.reduce((total, item) => total + (item.price * item.quantity), 0);
+
     const order: Omit<Order, 'id'> = {
       userId: user.uid,
       items,
+      totalAmount,
       status: 'pending',
       createdAt: new Date(),
       shippingAddress

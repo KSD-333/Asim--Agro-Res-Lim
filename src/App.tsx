@@ -15,20 +15,7 @@ import LoadingSpinner from './components/LoadingSpinner';
 import { CartProvider } from './context/CartContext';
 import { useAuth } from './context/AuthContext';
 import Profile from './pages/Profile';
-
-// Protected Route Component
-const ProtectedRoute = ({ children }: { children: JSX.Element }) => {
-  const { user, loading } = useAuth();
-  
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-  
-  if (!user) {
-    return <Navigate to="/dealers/login" replace />;
-  }
-  return children;
-};
+import ProtectedRoute from './components/ProtectedRoute';
 
 // Admin Route Component
 const AdminRoute = ({ children }: { children: JSX.Element }) => {
@@ -39,7 +26,7 @@ const AdminRoute = ({ children }: { children: JSX.Element }) => {
   }
   
   if (!user || userRole !== 'admin') {
-    return <Navigate to="/dealers/login" replace />;
+    return <Navigate to="/login" replace />;
   }
   return children;
 };
@@ -58,12 +45,23 @@ function App() {
           <Header user={user} userRole={userRole} />
           <main className="flex-grow">
             <Routes>
+              {/* Public Routes */}
               <Route path="/" element={<HomePage />} />
               <Route path="/products" element={<ProductsPage />} />
               <Route path="/products/:id" element={<ProductDetailPage />} />
               <Route path="/about" element={<AboutPage />} />
               <Route path="/contact" element={<ContactPage />} />
-              <Route path="/cart" element={<Cart />} />
+              <Route path="/login" element={<Login />} />
+
+              {/* Protected Routes */}
+              <Route
+                path="/cart"
+                element={
+                  <ProtectedRoute>
+                    <Cart />
+                  </ProtectedRoute>
+                }
+              />
               <Route
                 path="/profile"
                 element={
@@ -72,9 +70,6 @@ function App() {
                   </ProtectedRoute>
                 }
               />
-
-              {/* Dealer Routes */}
-              <Route path="/dealers/login" element={<Login />} />
               <Route
                 path="/dealers"
                 element={

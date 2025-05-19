@@ -1,12 +1,34 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
-import { products } from '../../data/products';
+import { collection, getDocs } from 'firebase/firestore';
+import { db } from '../../firebase';
+import { Product } from '../../types';
 import ProductCard from '../products/ProductCard';
 
 const FeaturedProducts: React.FC = () => {
-  // Get 3 featured products
-  const featuredProducts = products.slice(0, 3);
+  const [products, setProducts] = useState<Product[]>([]);
+
+  useEffect(() => {
+    const fetchRandomProducts = async () => {
+      try {
+        const productsRef = collection(db, 'products');
+        const snapshot = await getDocs(productsRef);
+        const allProducts = snapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        })) as Product[];
+
+        // Shuffle array and get first 3 products
+        const shuffled = allProducts.sort(() => 0.5 - Math.random());
+        setProducts(shuffled.slice(0, 3));
+      } catch (error) {
+        console.error('Error fetching products:', error);
+      }
+    };
+
+    fetchRandomProducts();
+  }, []);
 
   return (
     <section className="section bg-gray-50">
@@ -14,19 +36,13 @@ const FeaturedProducts: React.FC = () => {
         <div className="text-center mb-12 animate-fade-in">
           <h2 className="text-primary-900 mb-4">Featured Products</h2>
           <p className="text-gray-600 max-w-3xl mx-auto">
-            Our premium fertilizers are formulated with the perfect balance of nutrients to ensure
-            optimal crop growth, increased yield, and improved soil health.
+            Discover our handpicked selection of premium agricultural products designed to maximize your crop yield.
           </p>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8 mb-12">
-          {featuredProducts.map((product, index) => (
-            <div 
-              key={product.id} 
-              className={`animate-slide-up transition-all duration-300 delay-${index * 100}`}
-            >
-              <ProductCard product={product} />
-            </div>
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-8 mb-12">
+          {products.map((product) => (
+            <ProductCard key={product.id} product={product} />
           ))}
         </div>
 

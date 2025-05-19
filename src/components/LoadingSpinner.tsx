@@ -1,27 +1,9 @@
 import React from 'react';
 
-interface LoadingSpinnerProps {
-  size?: 'small' | 'medium' | 'large';
-}
-
-const LoadingSpinner: React.FC<LoadingSpinnerProps> = ({ size = 'medium' }) => {
-  const sizeClasses = {
-    small: 'h-8 w-8 border-2',
-    medium: 'h-12 w-12 border-4',
-    large: 'h-16 w-16 border-4',
-  };
-
+const LoadingSpinner: React.FC = () => {
   return (
-    <div className="flex items-center justify-center min-h-[200px]">
-      <div
-        className={`animate-spin rounded-full border-solid border-t-transparent ${
-          sizeClasses[size]
-        } border-blue-500`}
-        role="status"
-        aria-label="Loading"
-      >
-        <span className="sr-only">Loading...</span>
-      </div>
+    <div className="fixed inset-0 flex items-center justify-center bg-white bg-opacity-75 z-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
     </div>
   );
 };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Adjust the import path according to your structure
@@ -11,8 +11,24 @@ const AuthForm = () => {
   const [displayName, setDisplayName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const navigate = useNavigate();
   const auth = getAuth();
+
+  useEffect(() => {
+    // Load saved credentials from localStorage
+    const savedEmail = localStorage.getItem('userEmail');
+    const savedPassword = localStorage.getItem('userPassword');
+    const savedRememberMe = localStorage.getItem('rememberMe') === 'true';
+    
+    if (savedEmail && savedRememberMe) {
+      setEmail(savedEmail);
+      if (savedPassword) {
+        setPassword(savedPassword);
+      }
+      setRememberMe(savedRememberMe);
+    }
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
@@ -27,13 +43,25 @@ const AuthForm = () => {
         
         if (userDoc.exists()) {
           const userData = userDoc.data();
+          
+          // Save credentials if remember me is checked
+          if (rememberMe) {
+            localStorage.setItem('userEmail', email);
+            localStorage.setItem('userPassword', password);
+            localStorage.setItem('rememberMe', 'true');
+          } else {
+            // Clear saved credentials if remember me is unchecked
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userPassword');
+            localStorage.removeItem('rememberMe');
+          }
+
           if (userData.isAdmin) {
             navigate('/dealers/login/admin');
           } else {
             navigate('/dealers');
           }
         }
-        console.log('User logged in successfully');
       } else {
         // Signup logic
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
@@ -43,19 +71,37 @@ const AuthForm = () => {
           displayName,
           email,
           createdAt: new Date(),
-          role: 'user', // Default role
-          isAdmin: false // Explicit admin flag
+          role: 'user',
+          isAdmin: false
         });
-        // Optionally, you can update the user's display name in Firebase Auth profile
+
+        // Update profile
         if (auth.currentUser) {
           await updateProfile(auth.currentUser, { displayName });
         }
+
+        // Save credentials if remember me is checked
+        if (rememberMe) {
+          localStorage.setItem('userEmail', email);
+          localStorage.setItem('userPassword', password);
+          localStorage.setItem('rememberMe', 'true');
+        }
+
         navigate('/dealers');
       }
-      setLoading(false);
     } catch (err: any) {
       setError(err.message);
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const handleRememberMeChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setRememberMe(e.target.checked);
+    if (!e.target.checked) {
+      localStorage.removeItem('userEmail');
+      localStorage.removeItem('userPassword');
+      localStorage.removeItem('rememberMe');
     }
   };
 
@@ -113,19 +159,44 @@ const AuthForm = () => {
               placeholder="Enter your password"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
               required
-              minLength="6"
+              minLength={6}
             />
           </div>
 
-          {isLogin && (
-            <div className="flex items-center justify-between text-sm text-gray-600">
-              <label className="flex items-center">
-                <input type="checkbox" className="mr-2" />
-                Remember me
-              </label>
-              <a href="#" className="text-blue-600 hover:underline">Forgot password?</a>
-            </div>
-          )}
+          <div className="flex items-center justify-between text-sm text-gray-600">
+            <label className="flex items-center">
+              <input
+                type="checkbox"
+                checked={rememberMe}
+                onChange={handleRememberMeChange}
+                className="mr-2"
+              />
+              Remember me
+            </label>
+            {isLogin && (
+              <button
+                type="button"
+                onClick={() => {
+                  // Handle forgot password
+                  if (email) {
+                    // Send password reset email
+                    auth.sendPasswordResetEmail(email)
+                      .then(() => {
+                        alert('Password reset email sent!');
+                      })
+                      .catch((error) => {
+                        setError(error.message);
+                      });
+                  } else {
+                    setError('Please enter your email address first');
+                  }
+                }}
+                className="text-blue-600 hover:underline"
+              >
+                Forgot password?
+              </button>
+            )}
+          </div>
 
           <button
             type="submit"

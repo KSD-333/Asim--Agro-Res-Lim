@@ -26,7 +26,7 @@ const AdminRoute = ({ children }: { children: JSX.Element }) => {
   }
   
   if (!user || userRole !== 'admin') {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return children;
 };
@@ -71,7 +71,7 @@ function App() {
                 }
               />
               <Route
-                path="/dealers"
+                path="/become-dealer"
                 element={
                   <ProtectedRoute>
                     <DealerPage />
@@ -81,7 +81,55 @@ function App() {
 
               {/* Admin Routes */}
               <Route
+                path="/admin"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
                 path="/admin/dashboard"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/users"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/orders"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/products"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/feedback"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/products/new"
                 element={
                   <AdminRoute>
                     <AdminDashboard />

@@ -1,17 +1,22 @@
 import React from 'react';
 import { Navigate, useLocation } from 'react-router-dom';
-import { getAuth } from 'firebase/auth';
+import { useAuth } from '../context/AuthContext';
+import LoadingSpinner from './LoadingSpinner';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
 }
 
 const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const auth = getAuth();
+  const { user, loading } = useAuth();
   const location = useLocation();
 
-  if (!auth.currentUser) {
-    // Redirect to login page but save the attempted url
+  if (loading) {
+    return <LoadingSpinner />;
+  }
+
+  if (!user) {
+    // Save the current location to redirect back after login
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 

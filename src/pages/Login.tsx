@@ -63,6 +63,7 @@ const AuthForm = () => {
           if (userData.role === 'admin') {
             navigate('/admin/dashboard');
           } else {
+            // Redirect to the saved path or home
             navigate(from);
           }
         } else {

@@ -69,12 +69,21 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
     }
   };
 
+  const handleDealerClick = (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      navigate('/login', { state: { from: '/dealers' } });
+    } else {
+      navigate('/dealers');
+    }
+  };
+
   const navLinks = [
     { name: 'Home', path: '/' },
     { name: 'Products', path: '/products' },
     { name: 'About Us', path: '/about' },
     { name: 'Contact', path: '/contact' },
-    { name: 'Become a Dealer', path: '/dealers' },
+    { name: 'Become a Dealer', path: '/dealers' }
   ];
 
   return (
@@ -123,10 +132,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
             </Link>
 
             {user ? (
-              <div
-                ref={dropdownRef}
-                className="relative"
-              >
+              <div ref={dropdownRef} className="relative">
                 <button 
                   className="flex items-center space-x-2 text-gray-600 hover:text-primary-600"
                   onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -166,12 +172,14 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                 )}
               </div>
             ) : (
-              <Link
-                to="/dealers/login"
-                className="text-gray-600 hover:text-primary-600"
-              >
-                Login
-              </Link>
+              <div className="flex items-center space-x-4">
+                <Link
+                  to="/login"
+                  className="text-gray-600 hover:text-primary-600"
+                >
+                  Login
+                </Link>
+              </div>
             )}
           </div>
 
@@ -212,10 +220,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                 Cart
               </Link>
               {user ? (
-                <div
-                  ref={dropdownRef}
-                  className="relative"
-                >
+                <div ref={dropdownRef} className="relative">
                   <button 
                     className="flex items-center space-x-2 text-gray-600 hover:text-primary-600"
                     onClick={() => setIsDropdownOpen(!isDropdownOpen)}
@@ -255,12 +260,14 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                   )}
                 </div>
               ) : (
-                <Link
-                  to="/dealers/login"
-                  className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors"
-                >
-                  Login
-                </Link>
+                <div className="flex items-center space-x-4">
+                  <Link
+                    to="/login"
+                    className="text-gray-600 hover:text-primary-600"
+                  >
+                    Login
+                  </Link>
+                </div>
               )}
             </nav>
           </div>

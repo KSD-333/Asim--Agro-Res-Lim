@@ -63,11 +63,14 @@ const AuthForm = () => {
           if (userData.role === 'admin') {
             navigate('/admin/dashboard');
           } else {
-            // Redirect to the saved path or home
-            navigate(from);
+            // Get the redirect path from location state or default to home
+            const redirectPath = location.state?.from?.pathname || '/';
+            navigate(redirectPath);
           }
         } else {
-          navigate(from);
+          // Get the redirect path from location state or default to home
+          const redirectPath = location.state?.from?.pathname || '/';
+          navigate(redirectPath);
         }
       } else {
         // Register
@@ -82,7 +85,9 @@ const AuthForm = () => {
           createdAt: new Date()
         });
 
-        navigate(from);
+        // Get the redirect path from location state or default to home
+        const redirectPath = location.state?.from?.pathname || '/';
+        navigate(redirectPath);
       }
     } catch (error: any) {
       setError(error.message);

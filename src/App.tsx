@@ -71,7 +71,7 @@ function App() {
                 }
               />
               <Route
-                path="/become-dealer"
+                path="/dealers"
                 element={
                   <ProtectedRoute>
                     <DealerPage />

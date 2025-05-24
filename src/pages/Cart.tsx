@@ -25,7 +25,7 @@ interface ValidationErrors {
 }
 
 const Cart: React.FC = () => {
-  const { items, removeItem, updateQuantity, createOrder } = useCart();
+  const { items, removeItem, updateQuantity, createOrder, loading: cartLoading } = useCart();
   const navigate = useNavigate();
   const auth = getAuth();
   const [loading, setLoading] = useState(false);
@@ -145,6 +145,13 @@ const Cart: React.FC = () => {
   const handleCheckout = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    // Check if user is logged in
+    if (!auth.currentUser) {
+      alert('Please log in to place an order');
+      navigate('/login');
+      return;
+    }
+    
     // Validate the address before checkout
     const errors = validateAddress(shippingAddress);
     setValidationErrors(errors);
@@ -156,15 +163,37 @@ const Cart: React.FC = () => {
 
     setLoading(true);
     try {
+      console.log('Creating order with data:', {
+        userId: auth.currentUser.uid,
+        userEmail: auth.currentUser.email,
+        items,
+        shippingAddress
+      });
+      
       const orderId = await createOrder(shippingAddress);
+      console.log('Order created successfully with ID:', orderId);
       navigate(`/order-confirmation/${orderId}`);
     } catch (error) {
-      console.error('Error creating order:', error);
-      alert('Failed to create order. Please try again.');
+      console.error('Detailed error creating order:', error);
+      if (error instanceof Error) {
+        alert(`Failed to create order: ${error.message}`);
+      } else {
+        alert('Failed to create order. Please try again.');
+      }
     } finally {
       setLoading(false);
     }
   };
+
+  if (cartLoading) {
+    return (
+      <div className="container mx-auto px-4 py-8">
+        <div className="flex items-center justify-center min-h-[50vh]">
+          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-600"></div>
+        </div>
+      </div>
+    );
+  }
 
   if (items.length === 0) {
     return (

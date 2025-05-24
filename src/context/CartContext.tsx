@@ -1,12 +1,11 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { db } from '../firebase';
-import { doc, setDoc, getDoc, collection, addDoc } from 'firebase/firestore';
+import { doc, setDoc, getDoc, collection, addDoc, query, where, getDocs, updateDoc, Timestamp } from 'firebase/firestore';
 import { useAuth } from './AuthContext';
 
 interface CartItem {
   id: string;
   name: string;
-  price: number;
   quantity: number;
   size: string;
   image: string;
@@ -21,10 +20,12 @@ interface CartItem {
 interface Order {
   id: string;
   userId: string;
+  userEmail: string;
   items: CartItem[];
-  totalAmount: number;
-  status: 'pending' | 'processing' | 'completed' | 'cancelled';
-  createdAt: Date;
+  status: 'pending' | 'processing' | 'delivered' | 'cancelled' | 'delayed';
+  createdAt: Timestamp;
+  updatedAt: Timestamp;
+  estimatedDeliveryDate: Timestamp;
   shippingAddress: {
     name: string;
     address: string;
@@ -33,6 +34,7 @@ interface Order {
     pincode: string;
     phone: string;
   };
+  adminNotes?: string;
 }
 
 interface CartContextType {
@@ -43,33 +45,60 @@ interface CartContextType {
   clearCart: () => void;
   createOrder: (shippingAddress: Order['shippingAddress']) => Promise<string>;
   getOrders: () => Promise<Order[]>;
+  cancelOrder: (orderId: string) => Promise<void>;
+  updateOrderStatus: (orderId: string, status: Order['status'], adminNotes?: string) => Promise<void>;
+  updateDeliveryDate: (orderId: string, newDate: Date) => Promise<void>;
+  loading: boolean;
 }
 
 const CartContext = createContext<CartContextType | undefined>(undefined);
 
 export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [items, setItems] = useState<CartItem[]>([]);
+  const [loading, setLoading] = useState(true);
   const { user } = useAuth();
 
+  // Load cart from Firebase when user logs in
   useEffect(() => {
-    if (user) {
-      // Load cart from Firestore
-      const loadCart = async () => {
+    const loadCart = async () => {
+      if (!user) {
+        setItems([]);
+        setLoading(false);
+        return;
+      }
+
+      try {
         const cartDoc = await getDoc(doc(db, 'carts', user.uid));
         if (cartDoc.exists()) {
-          setItems(cartDoc.data().items);
+          const cartData = cartDoc.data();
+          setItems(cartData.items || []);
         }
-      };
-      loadCart();
-    }
+      } catch (error) {
+        console.error('Error loading cart:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    loadCart();
   }, [user]);
 
+  // Save cart to Firebase whenever it changes
   useEffect(() => {
+    const saveCart = async () => {
+      if (!user) return;
+
+      try {
+        await setDoc(doc(db, 'carts', user.uid), { 
+          items,
+          updatedAt: Timestamp.now()
+        });
+      } catch (error) {
+        console.error('Error saving cart:', error);
+      }
+    };
+
     if (user) {
-      // Save cart to Firestore
-      const saveCart = async () => {
-        await setDoc(doc(db, 'carts', user.uid), { items });
-      };
       saveCart();
     }
   }, [items, user]);
@@ -93,6 +122,7 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const updateQuantity = (itemId: string, quantity: number) => {
+    if (quantity < 1) return;
     setItems(prevItems =>
       prevItems.map(item =>
         item.id === itemId ? { ...item, quantity } : item
@@ -105,32 +135,131 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   const createOrder = async (shippingAddress: Order['shippingAddress']): Promise<string> => {
-    if (!user) throw new Error('User must be logged in to create an order');
+    if (!user) {
+      throw new Error('You must be logged in to create an order');
+    }
 
-    const totalAmount = items.reduce((total, item) => total + (item.price * item.quantity), 0);
+    if (!user.email) {
+      throw new Error('User email is required to create an order');
+    }
 
-    const order: Omit<Order, 'id'> = {
-      userId: user.uid,
-      items,
-      totalAmount,
-      status: 'pending',
-      createdAt: new Date(),
-      shippingAddress
-    };
+    if (items.length === 0) {
+      throw new Error('Cannot create an order with an empty cart');
+    }
 
-    const orderRef = await addDoc(collection(db, 'orders'), order);
-    clearCart();
-    return orderRef.id;
+    // Validate shipping address
+    if (!shippingAddress || !shippingAddress.name || !shippingAddress.address || 
+        !shippingAddress.city || !shippingAddress.state || !shippingAddress.pincode || 
+        !shippingAddress.phone) {
+      throw new Error('Please provide complete shipping address information');
+    }
+
+    try {
+      const now = Timestamp.now();
+      const estimatedDeliveryDate = new Date();
+      estimatedDeliveryDate.setDate(estimatedDeliveryDate.getDate() + 3);
+
+      // Create a clean copy of items without any undefined values
+      const cleanItems = items.map(item => ({
+        id: item.id,
+        name: item.name,
+        quantity: item.quantity,
+        size: item.size,
+        image: item.image,
+        ...(item.nutrients && {
+          nutrients: {
+            nitrogen: item.nutrients.nitrogen || 0,
+            phosphorus: item.nutrients.phosphorus || 0,
+            potassium: item.nutrients.potassium || 0,
+            ...(item.nutrients.otherNutrients && { otherNutrients: item.nutrients.otherNutrients })
+          }
+        })
+      }));
+
+      const orderData = {
+        userId: user.uid,
+        userEmail: user.email,
+        items: cleanItems,
+        status: 'pending',
+        createdAt: now,
+        updatedAt: now,
+        estimatedDeliveryDate: Timestamp.fromDate(estimatedDeliveryDate),
+        shippingAddress: {
+          name: shippingAddress.name.trim(),
+          address: shippingAddress.address.trim(),
+          city: shippingAddress.city.trim(),
+          state: shippingAddress.state.trim(),
+          pincode: shippingAddress.pincode.trim(),
+          phone: shippingAddress.phone.trim()
+        }
+      };
+
+      console.log('Creating order with data:', orderData);
+      const orderRef = await addDoc(collection(db, 'orders'), orderData);
+      
+      // Only clear cart after successful order creation
+      clearCart();
+      return orderRef.id;
+    } catch (error) {
+      console.error('Error creating order:', error);
+      throw new Error('Failed to create order. Please try again.');
+    }
   };
 
   const getOrders = async (): Promise<Order[]> => {
     if (!user) throw new Error('User must be logged in to view orders');
 
-    const ordersSnapshot = await getDoc(doc(db, 'orders', user.uid));
-    if (!ordersSnapshot.exists()) return [];
+    const ordersQuery = query(
+      collection(db, 'orders'),
+      where('userId', '==', user.uid)
+    );
+    const ordersSnapshot = await getDocs(ordersQuery);
+    return ordersSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    })) as Order[];
+  };
 
-    const orders = ordersSnapshot.data().orders as Order[];
-    return orders;
+  const cancelOrder = async (orderId: string): Promise<void> => {
+    if (!user) throw new Error('User must be logged in to cancel orders');
+
+    const orderRef = doc(db, 'orders', orderId);
+    const orderDoc = await getDoc(orderRef);
+
+    if (!orderDoc.exists()) {
+      throw new Error('Order not found');
+    }
+
+    const orderData = orderDoc.data() as Order;
+    if (orderData.userId !== user.uid) {
+      throw new Error('Unauthorized to cancel this order');
+    }
+
+    await updateDoc(orderRef, {
+      status: 'cancelled',
+      updatedAt: Timestamp.now()
+    });
+  };
+
+  const updateOrderStatus = async (
+    orderId: string,
+    status: Order['status'],
+    adminNotes?: string
+  ): Promise<void> => {
+    const orderRef = doc(db, 'orders', orderId);
+    await updateDoc(orderRef, {
+      status,
+      updatedAt: Timestamp.now(),
+      ...(adminNotes && { adminNotes })
+    });
+  };
+
+  const updateDeliveryDate = async (orderId: string, newDate: Date): Promise<void> => {
+    const orderRef = doc(db, 'orders', orderId);
+    await updateDoc(orderRef, {
+      estimatedDeliveryDate: Timestamp.fromDate(newDate),
+      updatedAt: Timestamp.now()
+    });
   };
 
   return (
@@ -142,7 +271,11 @@ export const CartProvider: React.FC<{ children: React.ReactNode }> = ({ children
         updateQuantity,
         clearCart,
         createOrder,
-        getOrders
+        getOrders,
+        cancelOrder,
+        updateOrderStatus,
+        updateDeliveryDate,
+        loading
       }}
     >
       {children}

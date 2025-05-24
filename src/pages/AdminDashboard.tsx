@@ -1,6 +1,6 @@
 // src/pages/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, limit } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, limit, updateDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -18,8 +18,10 @@ import {
   Plus,
   Trash2,
   Image as ImageIcon,
-  X
+  X,
+  Mail
 } from 'lucide-react';
+import { Timestamp } from 'firebase/firestore';
 
 interface DashboardStats {
   totalUsers: number;
@@ -40,6 +42,15 @@ interface Product {
   nitrogen?: number;
   phosphorus?: number;
   potassium?: number;
+}
+
+interface Order {
+  id: string;
+  status: string;
+  userEmail: string;
+  items: { name: string; size: string; quantity: number; image: string }[];
+  estimatedDeliveryDate: Timestamp;
+  adminNotes?: string;
 }
 
 const AdminDashboard = () => {
@@ -67,6 +78,9 @@ const AdminDashboard = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const currentPath = location.pathname;
+  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
+  const [newDeliveryDate, setNewDeliveryDate] = useState<string>('');
+  const [adminNotes, setAdminNotes] = useState<string>('');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -206,6 +220,54 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleUpdateOrderStatus = async (orderId: string, status: Order['status']) => {
+    try {
+      await updateDoc(doc(db, 'orders', orderId), {
+        status,
+        adminNotes: adminNotes
+      });
+      setStats(prevStats => ({
+        ...prevStats,
+        recentOrders: prevStats.recentOrders.map(order =>
+          order.id === orderId
+            ? { ...order, status, adminNotes }
+            : order
+        )
+      }));
+      setSelectedOrder(null);
+      setAdminNotes('');
+    } catch (error) {
+      console.error('Error updating order status:', error);
+      setError('Failed to update order status');
+    }
+  };
+
+  const handleUpdateDeliveryDate = async (orderId: string) => {
+    try {
+      const newDate = new Date(newDeliveryDate);
+      await updateDoc(doc(db, 'orders', orderId), {
+        estimatedDeliveryDate: Timestamp.fromDate(newDate)
+      });
+      setStats(prevStats => ({
+        ...prevStats,
+        recentOrders: prevStats.recentOrders.map(order =>
+          order.id === orderId
+            ? { ...order, estimatedDeliveryDate: Timestamp.fromDate(newDate) }
+            : order
+        )
+      }));
+      setSelectedOrder(null);
+      setNewDeliveryDate('');
+    } catch (error) {
+      console.error('Error updating delivery date:', error);
+      setError('Failed to update delivery date');
+    }
+  };
+
+  const handleEmailUser = (email: string) => {
+    window.location.href = `mailto:${email}`;
+  };
+
   const quickLinks = [
     {
       title: 'Users Management',
@@ -237,6 +299,179 @@ const AdminDashboard = () => {
     }
   ];
 
+  const renderOrderManagement = () => {
+    return (
+      <div className="bg-white rounded-xl shadow-md p-6">
+        <h2 className="text-xl font-semibold text-gray-900 mb-6">Orders Management</h2>
+        <div className="space-y-4">
+          {stats.recentOrders.map((order) => {
+            // Safely handle timestamps
+            const createdAt = order.createdAt?.toDate ? 
+              order.createdAt.toDate().toLocaleDateString() : 
+              'Date not available';
+            
+            const estimatedDelivery = order.estimatedDeliveryDate?.toDate ? 
+              order.estimatedDeliveryDate.toDate().toLocaleDateString() : 
+              'Date not available';
+
+            return (
+              <div key={order.id} className="border rounded-lg p-4">
+                <div className="flex items-center justify-between mb-4">
+                  <div>
+                    <p className="font-medium text-gray-900">Order #{order.id.slice(0, 8)}</p>
+                    <p className="text-sm text-gray-600">{createdAt}</p>
+                    <p className="text-sm text-gray-600">
+                      Customer: {order.userEmail}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(order.status)}`}>
+                      {order.status.charAt(0).toUpperCase() + order.status.slice(1)}
+                    </span>
+                    <button
+                      onClick={() => handleEmailUser(order.userEmail)}
+                      className="p-2 text-blue-600 hover:bg-blue-50 rounded-full"
+                      title="Email Customer"
+                    >
+                      <Mail className="h-5 w-5" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="space-y-4">
+                  {order.items?.map((item: { name: string; size: string; quantity: number; image: string }, index: number) => (
+                    <div key={index} className="flex items-center space-x-4">
+                      <img
+                        src={item.image}
+                        alt={item.name}
+                        className="w-16 h-16 object-cover rounded"
+                      />
+                      <div>
+                        <p className="font-medium text-gray-900">{item.name}</p>
+                        <p className="text-sm text-gray-600">
+                          Size: {item.size} | Quantity: {item.quantity}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-4 pt-4 border-t">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-gray-600">
+                        Estimated Delivery: {estimatedDelivery}
+                      </p>
+                      {order.adminNotes && (
+                        <p className="text-sm text-gray-600 mt-1">
+                          Note: {order.adminNotes}
+                        </p>
+                      )}
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <button
+                        onClick={() => setSelectedOrder(order)}
+                        className="px-4 py-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors"
+                      >
+                        Update Status
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Order Update Modal */}
+        {selectedOrder && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-lg p-6 max-w-md w-full">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">
+                Update Order #{selectedOrder.id.slice(0, 8)}
+              </h3>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Order Status
+                  </label>
+                  <select
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    onChange={(e) => handleUpdateOrderStatus(selectedOrder.id, e.target.value as Order['status'])}
+                  >
+                    <option value="pending">Pending</option>
+                    <option value="processing">Processing</option>
+                    <option value="delivered">Delivered</option>
+                    <option value="delayed">Delayed</option>
+                    <option value="cancelled">Cancelled</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Admin Notes
+                  </label>
+                  <textarea
+                    value={adminNotes}
+                    onChange={(e) => setAdminNotes(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                    rows={3}
+                    placeholder="Add any notes about the order..."
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Update Delivery Date
+                  </label>
+                  <input
+                    type="date"
+                    value={newDeliveryDate}
+                    onChange={(e) => setNewDeliveryDate(e.target.value)}
+                    className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-green-500 focus:border-transparent"
+                  />
+                  {newDeliveryDate && (
+                    <button
+                      onClick={() => handleUpdateDeliveryDate(selectedOrder.id)}
+                      className="mt-2 w-full px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors"
+                    >
+                      Update Delivery Date
+                    </button>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => setSelectedOrder(null)}
+                  className="w-full px-4 py-2 bg-gray-100 text-gray-700 rounded-lg hover:bg-gray-200 transition-colors"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  const getStatusColor = (status: Order['status']) => {
+    switch (status) {
+      case 'pending':
+        return 'bg-yellow-100 text-yellow-800';
+      case 'processing':
+        return 'bg-blue-100 text-blue-800';
+      case 'delivered':
+        return 'bg-green-100 text-green-800';
+      case 'cancelled':
+        return 'bg-red-100 text-red-800';
+      case 'delayed':
+        return 'bg-orange-100 text-orange-800';
+      default:
+        return 'bg-gray-100 text-gray-800';
+    }
+  };
+
   const renderContent = () => {
     switch (currentPath) {
       case '/admin/users':
@@ -265,31 +500,7 @@ const AdminDashboard = () => {
         );
 
       case '/admin/orders':
-        return (
-          <div className="bg-white rounded-xl shadow-md p-6">
-            <h2 className="text-xl font-semibold text-gray-900 mb-6">Orders Management</h2>
-            <div className="space-y-4">
-              {stats.recentOrders.map((order) => (
-                <div key={order.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">Order #{order.id.slice(0, 8)}</p>
-                    <p className="text-sm text-gray-600">
-                      {new Date(order.createdAt?.toDate()).toLocaleDateString()}
-                    </p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <span className="px-3 py-1 bg-green-100 text-green-600 rounded-md">
-                      ${order.totalAmount}
-                    </span>
-                    <button className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
-                      View Details
-                    </button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-        );
+        return renderOrderManagement();
 
       case '/admin/products':
         return (
@@ -651,8 +862,8 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container-custom">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900">Admin Dashboard</h1>
-          <p className="mt-2 text-gray-600">Welcome to your admin control panel</p>
+          <h1 className="text-3xl font-bold text-gray-900 p-2 mt-8  text-center text-green-700">Dashboard</h1>
+         
         </div>
 
         {renderContent()}

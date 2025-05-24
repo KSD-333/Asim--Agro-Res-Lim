@@ -1,6 +1,6 @@
 // src/pages/AdminDashboard.tsx
 import React, { useState, useEffect } from 'react';
-import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, limit, updateDoc } from 'firebase/firestore';
+import { collection, getDocs, addDoc, deleteDoc, doc, query, orderBy, limit, updateDoc, getDoc, setDoc, where, onSnapshot } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -19,7 +19,11 @@ import {
   Trash2,
   Image as ImageIcon,
   X,
-  Mail
+  Mail,
+  CheckCircle,
+  Clock,
+  LayoutDashboard,
+  FileText
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 
@@ -53,6 +57,35 @@ interface Order {
   adminNotes?: string;
 }
 
+interface OrderMessage {
+  id: string;
+  orderId: string;
+  userId: string;
+  type: 'complaint' | 'return';
+  message: string;
+  status: 'pending' | 'in_progress' | 'resolved';
+  createdAt: any;
+  adminResponse?: string;
+  userName: string;
+}
+
+interface ContactForm {
+  id: string;
+  type: 'message' | 'getStarted';
+  name: string;
+  email: string;
+  phone: string;
+  message: string;
+  businessType?: string;
+  location?: string;
+  status: 'pending' | 'in_progress' | 'resolved';
+  createdAt: any;
+  userId: string;
+  userName: string;
+  userEmail: string;
+  adminResponse?: string;
+}
+
 const AdminDashboard = () => {
   const [stats, setStats] = useState<DashboardStats>({
     totalUsers: 0,
@@ -81,6 +114,12 @@ const AdminDashboard = () => {
   const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
   const [newDeliveryDate, setNewDeliveryDate] = useState<string>('');
   const [adminNotes, setAdminNotes] = useState<string>('');
+  const [orderMessages, setOrderMessages] = useState<OrderMessage[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<OrderMessage | null>(null);
+  const [adminResponse, setAdminResponse] = useState('');
+  const [savingResponse, setSavingResponse] = useState(false);
+  const [contactForms, setContactForms] = useState<ContactForm[]>([]);
+  const [selectedForm, setSelectedForm] = useState<ContactForm | null>(null);
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -136,6 +175,31 @@ const AdminDashboard = () => {
     };
 
     fetchDashboardData();
+
+    // Subscribe to order messages
+    const messagesRef = collection(db, 'orderMessages');
+    const unsubscribe = onSnapshot(messagesRef, (snapshot) => {
+      const messages = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as OrderMessage[];
+      setOrderMessages(messages);
+    });
+
+    // Subscribe to contact forms
+    const formsRef = collection(db, 'contactForms');
+    const unsubscribeForms = onSnapshot(formsRef, (snapshot) => {
+      const forms = snapshot.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data()
+      })) as ContactForm[];
+      setContactForms(forms);
+    });
+
+    return () => {
+      unsubscribe();
+      unsubscribeForms();
+    };
   }, []);
 
   const handleAddProduct = async (e: React.FormEvent) => {
@@ -268,34 +332,98 @@ const AdminDashboard = () => {
     window.location.href = `mailto:${email}`;
   };
 
+  const handleUpdateMessageStatus = async (messageId: string, newStatus: OrderMessage['status']) => {
+    try {
+      await updateDoc(doc(db, 'orderMessages', messageId), {
+        status: newStatus
+      });
+    } catch (error) {
+      console.error('Error updating message status:', error);
+    }
+  };
+
+  const handleSaveResponse = async () => {
+    if (!selectedMessage || !adminResponse.trim()) return;
+
+    setSavingResponse(true);
+    try {
+      await updateDoc(doc(db, 'orderMessages', selectedMessage.id), {
+        adminResponse: adminResponse.trim(),
+        status: 'resolved'
+      });
+      setSelectedMessage(null);
+      setAdminResponse('');
+    } catch (error) {
+      console.error('Error saving response:', error);
+    } finally {
+      setSavingResponse(false);
+    }
+  };
+
+  const handleUpdateFormStatus = async (formId: string, newStatus: ContactForm['status']) => {
+    try {
+      await updateDoc(doc(db, 'contactForms', formId), {
+        status: newStatus
+      });
+    } catch (error) {
+      console.error('Error updating form status:', error);
+    }
+  };
+
+  const handleSaveFormResponse = async () => {
+    if (!selectedForm || !adminResponse.trim()) return;
+
+    setSavingResponse(true);
+    try {
+      await updateDoc(doc(db, 'contactForms', selectedForm.id), {
+        adminResponse: adminResponse.trim(),
+        status: 'resolved'
+      });
+      setSelectedForm(null);
+      setAdminResponse('');
+    } catch (error) {
+      console.error('Error saving response:', error);
+    } finally {
+      setSavingResponse(false);
+    }
+  };
+
   const quickLinks = [
     {
-      title: 'Users Management',
-      icon: <Users className="h-6 w-6" />,
-      path: '/admin/users',
-      color: 'bg-blue-500',
-      count: stats.totalUsers
+      name: 'Analytics Overview',
+      href: '/admin/analytics',
+      icon: <BarChart2 className="h-6 w-6" />,
+      color: 'bg-blue-500'
     },
     {
-      title: 'Orders Management',
-      icon: <ShoppingCart className="h-6 w-6" />,
-      path: '/admin/orders',
-      color: 'bg-green-500',
-      count: stats.totalOrders
-    },
-    {
-      title: 'Products Management',
+      name: 'Products',
+      href: '/admin/products',
       icon: <Package className="h-6 w-6" />,
-      path: '/admin/products',
-      color: 'bg-purple-500',
-      count: stats.totalProducts
+      color: 'bg-purple-500'
     },
     {
-      title: 'Customer Feedback',
+      name: 'Orders',
+      href: '/admin/orders',
+      icon: <ShoppingCart className="h-6 w-6" />,
+      color: 'bg-green-500'
+    },
+    {
+      name: 'Users',
+      href: '/admin/users',
+      icon: <Users className="h-6 w-6" />,
+      color: 'bg-yellow-500'
+    },
+    {
+      name: 'Forms',
+      href: '/admin/forms',
+      icon: <FileText className="h-6 w-6" />,
+      color: 'bg-indigo-500'
+    },
+    {
+      name: 'Messages',
+      href: '/admin/messages',
       icon: <MessageSquare className="h-6 w-6" />,
-      path: '/admin/feedback',
-      color: 'bg-yellow-500',
-      count: stats.totalFeedback
+      color: 'bg-pink-500'
     }
   ];
 
@@ -307,11 +435,11 @@ const AdminDashboard = () => {
           {stats.recentOrders.map((order) => {
             // Safely handle timestamps
             const createdAt = order.createdAt?.toDate ? 
-              order.createdAt.toDate().toLocaleDateString() : 
+              order.createdAt.toDate().toLocaleDateString('en-GB') : 
               'Date not available';
             
             const estimatedDelivery = order.estimatedDeliveryDate?.toDate ? 
-              order.estimatedDeliveryDate.toDate().toLocaleDateString() : 
+              order.estimatedDeliveryDate.toDate().toLocaleDateString('en-GB') : 
               'Date not available';
 
             return (
@@ -474,6 +602,206 @@ const AdminDashboard = () => {
 
   const renderContent = () => {
     switch (currentPath) {
+      case '/admin/analytics':
+        return (
+          <div className="space-y-6">
+            {/* Overview Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Orders</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">{stats.totalOrders}</p>
+                  </div>
+                  <div className="bg-green-100 p-3 rounded-lg">
+                    <ShoppingCart className="h-6 w-6 text-green-600" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    {stats.recentOrders.length} new orders this month
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Users</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">{stats.totalUsers}</p>
+                  </div>
+                  <div className="bg-blue-100 p-3 rounded-lg">
+                    <Users className="h-6 w-6 text-blue-600" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    {stats.recentUsers.length} new users this month
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Total Products</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">{stats.totalProducts}</p>
+                  </div>
+                  <div className="bg-purple-100 p-3 rounded-lg">
+                    <Package className="h-6 w-6 text-purple-600" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    Across {products.length} categories
+                  </p>
+                </div>
+              </div>
+
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium text-gray-600">Active Messages</p>
+                    <p className="text-2xl font-bold text-gray-900 mt-2">{orderMessages.filter(m => m.status !== 'resolved').length}</p>
+                  </div>
+                  <div className="bg-pink-100 p-3 rounded-lg">
+                    <MessageSquare className="h-6 w-6 text-pink-600" />
+                  </div>
+                </div>
+                <div className="mt-4">
+                  <p className="text-sm text-gray-600">
+                    {orderMessages.filter(m => m.status === 'pending').length} pending responses
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* Recent Activity and Statistics */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              {/* Recent Orders */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
+                  <button
+                    onClick={() => navigate('/admin/orders')}
+                    className="text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {stats.recentOrders.slice(0, 5).map((order) => (
+                    <div key={order.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">Order #{order.id.slice(0, 8)}</p>
+                        <p className="text-sm text-gray-600">
+                          {new Date(order.createdAt?.toDate()).toLocaleDateString('en-GB')}
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
+                          {order.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Recent Messages */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-lg font-semibold text-gray-900">Recent Messages</h2>
+                  <button
+                    onClick={() => navigate('/admin/messages')}
+                    className="text-sm text-primary-600 hover:text-primary-700"
+                  >
+                    View All
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  {orderMessages.slice(0, 5).map((message) => (
+                    <div key={message.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">
+                          {message.type === 'complaint' ? 'Complaint' : 'Return Request'}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          From: {message.userName}
+                        </p>
+                      </div>
+                      <div className="flex items-center">
+                        <span className={`px-2 py-1 text-xs rounded-full ${
+                          message.status === 'pending' ? 'bg-yellow-100 text-yellow-800' :
+                          message.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                          'bg-green-100 text-green-800'
+                        }`}>
+                          {message.status}
+                        </span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Additional Statistics */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Order Status Distribution */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Order Status Distribution</h2>
+                <div className="space-y-4">
+                  {['pending', 'processing', 'delivered', 'delayed', 'cancelled'].map((status) => {
+                    const count = stats.recentOrders.filter(order => order.status === status).length;
+                    const percentage = (count / stats.recentOrders.length) * 100 || 0;
+                    return (
+                      <div key={status} className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 capitalize">{status}</span>
+                          <span className="text-gray-900">{count} orders</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${getStatusColor(status)}`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Message Type Distribution */}
+              <div className="bg-white rounded-lg shadow-sm p-6">
+                <h2 className="text-lg font-semibold text-gray-900 mb-4">Message Type Distribution</h2>
+                <div className="space-y-4">
+                  {['complaint', 'return'].map((type) => {
+                    const count = orderMessages.filter(message => message.type === type).length;
+                    const percentage = (count / orderMessages.length) * 100 || 0;
+                    return (
+                      <div key={type} className="space-y-2">
+                        <div className="flex justify-between text-sm">
+                          <span className="text-gray-600 capitalize">{type}</span>
+                          <span className="text-gray-900">{count} messages</span>
+                        </div>
+                        <div className="w-full bg-gray-200 rounded-full h-2">
+                          <div
+                            className={`h-2 rounded-full ${
+                              type === 'complaint' ? 'bg-red-500' : 'bg-blue-500'
+                            }`}
+                            style={{ width: `${percentage}%` }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+
       case '/admin/users':
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
@@ -712,6 +1040,146 @@ const AdminDashboard = () => {
           </div>
         );
 
+      case '/admin/forms':
+        return (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Contact Forms</h2>
+            <div className="space-y-4">
+              {contactForms.length === 0 ? (
+                <p className="text-gray-600">No forms submitted yet.</p>
+              ) : (
+                contactForms.map((form) => (
+                  <div key={form.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          {form.type === 'message' ? (
+                            <MessageSquare className="h-5 w-5 text-blue-500" />
+                          ) : (
+                            <Mail className="h-5 w-5 text-green-500" />
+                          )}
+                          <h3 className="font-medium text-gray-900">
+                            {form.type === 'message' ? 'Contact Message' : 'Get Started Form'}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          From: {form.name} ({form.email})
+                        </p>
+                        {form.type === 'getStarted' && (
+                          <p className="text-sm text-gray-600">
+                            Business: {form.businessType} | Location: {form.location}
+                          </p>
+                        )}
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={form.status}
+                          onChange={(e) => handleUpdateFormStatus(form.id, e.target.value as ContactForm['status'])}
+                          className="text-sm border rounded-md px-2 py-1"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="resolved">Resolved</option>
+                        </select>
+                        <button
+                          onClick={() => {
+                            setSelectedForm(form);
+                            setAdminResponse(form.adminResponse || '');
+                          }}
+                          className="px-3 py-1 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                        >
+                          Respond
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-md">
+                      <p className="text-gray-700">{form.message}</p>
+                    </div>
+                    {form.adminResponse && (
+                      <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                        <p className="text-sm text-gray-600">Admin Response:</p>
+                        <p className="text-gray-700">{form.adminResponse}</p>
+                      </div>
+                    )}
+                    <div className="mt-2 text-sm text-gray-500">
+                      Submitted: {form.createdAt?.toDate().toLocaleDateString('en-GB')}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+
+      case '/admin/messages':
+        return (
+          <div className="bg-white rounded-xl shadow-md p-6">
+            <h2 className="text-xl font-semibold text-gray-900 mb-6">Order Messages</h2>
+            <div className="space-y-4">
+              {orderMessages.length === 0 ? (
+                <p className="text-gray-600">No messages found.</p>
+              ) : (
+                orderMessages.map((message) => (
+                  <div key={message.id} className="border rounded-lg p-4">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <div className="flex items-center space-x-2">
+                          {message.type === 'complaint' ? (
+                            <AlertCircle className="h-5 w-5 text-red-500" />
+                          ) : (
+                            <Package className="h-5 w-5 text-blue-500" />
+                          )}
+                          <h3 className="font-medium text-gray-900">
+                            {message.type === 'complaint' ? 'Complaint' : 'Return Request'}
+                          </h3>
+                        </div>
+                        <p className="text-sm text-gray-600 mt-1">
+                          Order #{message.orderId.slice(0, 8)}
+                        </p>
+                        <p className="text-sm text-gray-600">
+                          From: {message.userName}
+                        </p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <select
+                          value={message.status}
+                          onChange={(e) => handleUpdateMessageStatus(message.id, e.target.value as OrderMessage['status'])}
+                          className="text-sm border rounded-md px-2 py-1"
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="in_progress">In Progress</option>
+                          <option value="resolved">Resolved</option>
+                        </select>
+                        <button
+                          onClick={() => {
+                            setSelectedMessage(message);
+                            setAdminResponse(message.adminResponse || '');
+                          }}
+                          className="px-3 py-1 text-sm bg-primary-600 text-white rounded-md hover:bg-primary-700"
+                        >
+                          Respond
+                        </button>
+                      </div>
+                    </div>
+                    <div className="bg-gray-50 p-3 rounded-md">
+                      <p className="text-gray-700">{message.message}</p>
+                    </div>
+                    {message.adminResponse && (
+                      <div className="mt-3 p-3 bg-blue-50 rounded-md">
+                        <p className="text-sm text-gray-600">Admin Response:</p>
+                        <p className="text-gray-700">{message.adminResponse}</p>
+                      </div>
+                    )}
+                    <div className="mt-2 text-sm text-gray-500">
+                      Submitted: {message.createdAt?.toDate().toLocaleDateString('en-GB')}
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+        );
+
       default:
         return (
           <>
@@ -721,20 +1189,15 @@ const AdminDashboard = () => {
                 <div
                   key={index}
                   className="bg-white rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow cursor-pointer"
-                  onClick={() => navigate(link.path)}
+                  onClick={() => navigate(link.href)}
                 >
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="text-sm font-medium text-gray-600">{link.title}</p>
-                      <p className="text-2xl font-bold text-gray-900 mt-2">{link.count}</p>
+                      <p className="text-sm font-medium text-gray-600">{link.name}</p>
                     </div>
                     <div className={`${link.color} p-3 rounded-lg`}>
                       {link.icon}
                     </div>
-                  </div>
-                  <div className="mt-4 flex items-center text-sm text-primary-600">
-                    View Details
-                    <ChevronRight className="h-4 w-4 ml-1" />
                   </div>
                 </div>
               ))}
@@ -759,7 +1222,7 @@ const AdminDashboard = () => {
                       <div>
                         <p className="font-medium text-gray-900">Order #{order.id.slice(0, 8)}</p>
                         <p className="text-sm text-gray-600">
-                          {new Date(order.createdAt?.toDate()).toLocaleDateString()}
+                          {new Date(order.createdAt?.toDate()).toLocaleDateString('en-GB')}
                         </p>
                       </div>
                       <div className="flex items-center">
@@ -862,12 +1325,50 @@ const AdminDashboard = () => {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="container-custom">
         <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-900 p-2 mt-8  text-center text-green-700">Dashboard</h1>
-         
+          <h1 className="text-3xl font-bold text-gray-900 p-2 mt-8 text-center text-green-700">Dashboard</h1>
         </div>
 
         {renderContent()}
       </div>
+
+      {/* Response Modal */}
+      {selectedForm && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold text-gray-900 mb-4">
+              Respond to {selectedForm.type === 'message' ? 'Contact Message' : 'Get Started Form'}
+            </h3>
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Original Message:</p>
+              <p className="text-gray-700">{selectedForm.message}</p>
+            </div>
+            <textarea
+              value={adminResponse}
+              onChange={(e) => setAdminResponse(e.target.value)}
+              className="w-full h-32 px-4 py-2 rounded-md border border-gray-300 focus:ring-2 focus:ring-primary-500 focus:border-transparent"
+              placeholder="Enter your response..."
+            />
+            <div className="flex justify-end space-x-4 mt-4">
+              <button
+                onClick={() => {
+                  setSelectedForm(null);
+                  setAdminResponse('');
+                }}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveFormResponse}
+                disabled={savingResponse || !adminResponse.trim()}
+                className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
+              >
+                {savingResponse ? 'Saving...' : 'Send Response'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

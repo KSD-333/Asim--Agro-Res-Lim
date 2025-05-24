@@ -121,6 +121,22 @@ function App() {
                 }
               />
               <Route
+                path="/admin/forms"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/messages"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
                 path="/admin/feedback"
                 element={
                   <AdminRoute>
@@ -130,6 +146,14 @@ function App() {
               />
               <Route
                 path="/admin/products/new"
+                element={
+                  <AdminRoute>
+                    <AdminDashboard />
+                  </AdminRoute>
+                }
+              />
+              <Route
+                path="/admin/analytics"
                 element={
                   <AdminRoute>
                     <AdminDashboard />

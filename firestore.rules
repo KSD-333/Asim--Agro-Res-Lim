@@ -40,6 +40,21 @@ service cloud.firestore {
       allow delete: if request.auth != null && isAdmin();
     }
 
+    // Allow users to create and read their own messages, and admins to read and update all messages
+    match /orderMessages/{messageId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read: if request.auth != null && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update: if request.auth != null && isAdmin();
+      allow delete: if request.auth != null && isAdmin();
+    }
+
+    // Allow users to create contact forms and admins to read them
+    match /contactForms/{formId} {
+      allow create: if request.auth != null;
+      allow read: if request.auth != null && (isAdmin() || resource.data.userId == request.auth.uid);
+      allow update, delete: if request.auth != null && isAdmin();
+    }
+
     // Allow admins to read all collections
     match /{document=**} {
       allow read: if isAdmin();

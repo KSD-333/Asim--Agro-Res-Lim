@@ -26,6 +26,7 @@ import {
   FileText
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
+import { auth } from '../firebase';
 
 interface DashboardStats {
   totalUsers: number;
@@ -120,18 +121,35 @@ const AdminDashboard = () => {
   const [savingResponse, setSavingResponse] = useState(false);
   const [contactForms, setContactForms] = useState<ContactForm[]>([]);
   const [selectedForm, setSelectedForm] = useState<ContactForm | null>(null);
+  const [userToDelete, setUserToDelete] = useState<string | null>(null);
+  const [isDeletingUser, setIsDeletingUser] = useState(false);
+  const [users, setUsers] = useState<any[]>([]);
 
-  useEffect(() => {
-    const fetchDashboardData = async () => {
+  const fetchDashboardData = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+
+      // Fetch users
       try {
-        // Fetch users
         const usersSnapshot = await getDocs(collection(db, 'users'));
+        const usersList = usersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
+        setUsers(usersList);
+
+        // Fetch recent users for stats
         const recentUsersQuery = query(
           collection(db, 'users'),
           orderBy('createdAt', 'desc'),
           limit(5)
         );
         const recentUsersSnapshot = await getDocs(recentUsersQuery);
+        const recentUsers = recentUsersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
         // Fetch orders
         const ordersSnapshot = await getDocs(collection(db, 'orders'));
@@ -141,6 +159,10 @@ const AdminDashboard = () => {
           limit(5)
         );
         const recentOrdersSnapshot = await getDocs(recentOrdersQuery);
+        const recentOrders = recentOrdersSnapshot.docs.map(doc => ({
+          id: doc.id,
+          ...doc.data()
+        }));
 
         // Fetch products
         const productsSnapshot = await getDocs(collection(db, 'products'));
@@ -158,22 +180,26 @@ const AdminDashboard = () => {
           totalOrders: ordersSnapshot.size,
           totalProducts: productsSnapshot.size,
           totalFeedback: feedbackSnapshot.size,
-          recentOrders: recentOrdersSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          })),
-          recentUsers: recentUsersSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-          }))
+          recentOrders,
+          recentUsers
         });
-      } catch (error) {
-        console.error('Error fetching dashboard data:', error);
-      } finally {
-        setLoading(false);
+      } catch (error: any) {
+        console.error('Error fetching data:', error);
+        if (error.code === 'permission-denied') {
+          setError('Permission denied. Please check your admin privileges.');
+        } else {
+          setError('Error loading data. Please refresh the page.');
+        }
       }
-    };
+    } catch (error: any) {
+      console.error('Error in fetchDashboardData:', error);
+      setError('Failed to load dashboard data. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  useEffect(() => {
     fetchDashboardData();
 
     // Subscribe to order messages
@@ -385,6 +411,90 @@ const AdminDashboard = () => {
       console.error('Error saving response:', error);
     } finally {
       setSavingResponse(false);
+    }
+  };
+
+  const handleDeleteUser = async (userId: string) => {
+    if (isDeletingUser) return; // Prevent multiple deletions
+    
+    try {
+      setIsDeletingUser(true);
+      // Get current user's admin status
+      const currentUser = auth.currentUser;
+      if (!currentUser) {
+        setError('You must be logged in to perform this action');
+        return;
+      }
+
+      // Check if current user is admin
+      const adminDoc = await getDoc(doc(db, 'users', currentUser.uid));
+      if (!adminDoc.exists() || adminDoc.data().role !== 'admin') {
+        setError('You do not have permission to delete users');
+        return;
+      }
+
+      // First, check if the user exists in Firestore
+      const userDoc = await getDoc(doc(db, 'users', userId));
+      if (!userDoc.exists()) {
+        setError('User not found');
+        return;
+      }
+
+      // Prevent self-deletion
+      if (userId === currentUser.uid) {
+        setError('You cannot delete your own account');
+        return;
+      }
+
+      // Get all collections that might have user data
+      const collections = ['orders', 'reviews', 'contactForms', 'orderMessages', 'feedback'];
+      
+      // Delete user data from all collections
+      for (const collectionName of collections) {
+        try {
+          const q = query(
+            collection(db, collectionName),
+            where('userId', '==', userId)
+          );
+          const querySnapshot = await getDocs(q);
+          
+          // Delete all documents in the collection that belong to this user
+          const deletePromises = querySnapshot.docs.map(doc => 
+            deleteDoc(doc.ref)
+          );
+          await Promise.all(deletePromises);
+        } catch (collectionError) {
+          console.warn(`Error deleting from ${collectionName}:`, collectionError);
+          // Continue with other collections even if one fails
+        }
+      }
+
+      // Finally, delete the user document
+      await deleteDoc(doc(db, 'users', userId));
+      
+      // Update the stats to remove the deleted user
+      setStats(prevStats => ({
+        ...prevStats,
+        totalUsers: prevStats.totalUsers - 1,
+        recentUsers: prevStats.recentUsers.filter(user => user.id !== userId)
+      }));
+
+      setError('User deleted successfully');
+      setTimeout(() => {
+        setError(null);
+      }, 3000);
+    } catch (error: any) {
+      console.error('Error deleting user:', error);
+      if (error.code === 'permission-denied') {
+        setError('Permission denied. Please check your admin privileges and Firebase security rules.');
+      } else if (error.code === 'not-found') {
+        setError('User not found in the database.');
+      } else {
+        setError(`Failed to delete user: ${error.message}`);
+      }
+    } finally {
+      setIsDeletingUser(false);
+      setUserToDelete(null);
     }
   };
 
@@ -806,24 +916,75 @@ const AdminDashboard = () => {
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Users Management</h2>
-            <div className="space-y-4">
-              {stats.recentUsers.map((user) => (
-                <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
-                  <div>
-                    <p className="font-medium text-gray-900">{user.displayName}</p>
-                    <p className="text-sm text-gray-600">{user.email}</p>
-                  </div>
-                  <div className="flex items-center space-x-2">
-                    <button className="px-3 py-1 bg-blue-100 text-blue-600 rounded-md hover:bg-blue-200">
-                      Edit
+            {error && (
+              <div className="mb-4 p-4 rounded-lg bg-red-50 border border-red-200 text-red-600">
+                {error}
+                <button 
+                  onClick={() => fetchDashboardData()}
+                  className="ml-4 text-red-700 underline hover:text-red-800"
+                >
+                  Retry
+                </button>
+              </div>
+            )}
+            {loading ? (
+              <div className="flex justify-center items-center py-8">
+                <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-primary-600"></div>
+              </div>
+            ) : (
+              <div className="space-y-4">
+                {users.length === 0 ? (
+                  <p className="text-gray-600">No users found.</p>
+                ) : (
+                  users.map((user) => (
+                    <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+                      <div>
+                        <p className="font-medium text-gray-900">{user.displayName || 'No Name'}</p>
+                        <p className="text-sm text-gray-600">{user.email || 'No Email'}</p>
+                        <p className="text-xs text-gray-500">Role: {user.role || 'user'}</p>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <button 
+                          onClick={() => setUserToDelete(user.id)}
+                          disabled={isDeletingUser}
+                          className="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          {isDeletingUser && userToDelete === user.id ? 'Deleting...' : 'Delete'}
+                        </button>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+
+            {/* Delete Confirmation Dialog */}
+            {userToDelete && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+                <div className="bg-white rounded-lg p-6 max-w-md w-full">
+                  <h3 className="text-lg font-semibold mb-4">Confirm Delete</h3>
+                  <p className="text-gray-600 mb-6">
+                    Are you sure you want to delete this user? This action cannot be undone.
+                  </p>
+                  <div className="flex justify-end space-x-4">
+                    <button
+                      onClick={() => setUserToDelete(null)}
+                      disabled={isDeletingUser}
+                      className="px-4 py-2 text-gray-600 hover:text-gray-800 disabled:opacity-50"
+                    >
+                      Cancel
                     </button>
-                    <button className="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200">
-                      Delete
+                    <button
+                      onClick={() => handleDeleteUser(userToDelete)}
+                      disabled={isDeletingUser}
+                      className="px-4 py-2 bg-red-600 text-white rounded-md hover:bg-red-700 disabled:opacity-50"
+                    >
+                      {isDeletingUser ? 'Deleting...' : 'Delete'}
                     </button>
                   </div>
                 </div>
-              ))}
-            </div>
+              </div>
+            )}
           </div>
         );
 

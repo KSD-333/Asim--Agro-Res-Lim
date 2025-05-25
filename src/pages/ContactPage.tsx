@@ -1,8 +1,12 @@
 import React, { useState } from 'react';
-import { MapPin, Phone, Mail, Clock, Send, CheckCircle } from 'lucide-react';
+import { MapPin, Phone, Mail, Clock, Send, CheckCircle, AlertCircle } from 'lucide-react';
 import { dealerLocations } from '../data/dealerLocations';
+import { collection, addDoc, serverTimestamp } from 'firebase/firestore';
+import { db } from '../firebase';
+import { useAuth } from '../context/AuthContext';
 
 const ContactPage: React.FC = () => {
+  const { user } = useAuth();
   const [formState, setFormState] = useState({
     name: '',
     email: '',
@@ -12,30 +16,52 @@ const ContactPage: React.FC = () => {
   });
   
   const [formSubmitted, setFormSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [loading, setLoading] = useState(false);
   
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
     setFormState(prev => ({ ...prev, [name]: value }));
   };
   
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Here you would typically send the form data to your backend
-    console.log('Form submitted:', formState);
-    // Show success message
-    setFormSubmitted(true);
-    // Reset form
-    setFormState({
-      name: '',
-      email: '',
-      phone: '',
-      subject: '',
-      message: '',
-    });
-    // Hide success message after 5 seconds
-    setTimeout(() => {
-      setFormSubmitted(false);
-    }, 5000);
+    setLoading(true);
+    setError(null);
+
+    try {
+      const formData = {
+        ...formState,
+        type: 'message',
+        status: 'pending',
+        createdAt: serverTimestamp(),
+        userId: user?.uid || 'anonymous',
+        userName: user?.displayName || formState.name,
+        userEmail: user?.email || formState.email
+      };
+
+      await addDoc(collection(db, 'contactForms'), formData);
+      
+      // Show success message
+      setFormSubmitted(true);
+      // Reset form
+      setFormState({
+        name: '',
+        email: '',
+        phone: '',
+        subject: '',
+        message: '',
+      });
+      // Hide success message after 5 seconds
+      setTimeout(() => {
+        setFormSubmitted(false);
+      }, 5000);
+    } catch (error) {
+      console.error('Error submitting form:', error);
+      setError('Failed to submit form. Please try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -169,6 +195,13 @@ const ContactPage: React.FC = () => {
                   </div>
                 )}
                 
+                {error && (
+                  <div className="mb-6 bg-red-100 text-red-800 p-4 rounded-md flex items-center animate-fade-in">
+                    <AlertCircle className="h-5 w-5 mr-2 flex-shrink-0" />
+                    <p>{error}</p>
+                  </div>
+                )}
+                
                 <form onSubmit={handleSubmit}>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
                     <div>
@@ -254,10 +287,17 @@ const ContactPage: React.FC = () => {
                   
                   <button
                     type="submit"
+                    disabled={loading}
                     className="btn btn-primary w-full flex items-center justify-center"
                   >
-                    <Send className="h-5 w-5 mr-2" />
-                    Send Message
+                    {loading ? (
+                      <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-b-2 border-white"></div>
+                    ) : (
+                      <>
+                        <Send className="h-5 w-5 mr-2" />
+                        Send Message
+                      </>
+                    )}
                   </button>
                 </form>
               </div>

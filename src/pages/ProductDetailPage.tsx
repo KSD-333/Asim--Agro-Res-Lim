@@ -40,15 +40,35 @@ const ProductDetailPage: React.FC = () => {
       
       // Create a query to get reviews for this product
       const reviewsRef = collection(db, 'reviews');
-      const q = query(
-        reviewsRef,
-        where('productId', '==', id)
-        // Temporarily removing orderBy to avoid index requirement
-        // orderBy('createdAt', 'desc')
-      );
+      let querySnapshot;
+      
+      try {
+        // First try with ordering
+        const q = query(
+          reviewsRef,
+          where('productId', '==', id),
+          orderBy('createdAt', 'desc')
+        );
+        querySnapshot = await getDocs(q);
+      } catch (error: any) {
+        console.warn('Error with ordered query:', error);
+        
+        // Check if it's a permissions error
+        if (error.code === 'permission-denied') {
+          console.warn('Permission denied for reviews. Please check Firestore rules.');
+          setError('Unable to load reviews due to permission issues. Please contact support.');
+          return;
+        }
+        
+        // Fallback to basic query without ordering
+        console.warn('Falling back to basic query without ordering');
+        const basicQuery = query(
+          reviewsRef,
+          where('productId', '==', id)
+        );
+        querySnapshot = await getDocs(basicQuery);
+      }
 
-      console.log('Executing reviews query...');
-      const querySnapshot = await getDocs(q);
       console.log('Query completed. Found reviews:', querySnapshot.size);
 
       if (querySnapshot.empty) {
@@ -57,29 +77,56 @@ const ProductDetailPage: React.FC = () => {
         return;
       }
 
-      // Process the reviews and sort them in memory
+      // Process the reviews with better error handling
       const reviewsList = querySnapshot.docs
         .map(doc => {
-          const data = doc.data();
-          console.log('Processing review:', doc.id, data);
-          return {
-            id: doc.id,
-            productId: data.productId,
-            userId: data.userId,
-            userName: data.userName || 'Anonymous',
-            rating: data.rating || 0,
-            comment: data.comment || '',
-            images: data.images || [],
-            createdAt: data.createdAt?.toDate() || new Date()
-          };
+          try {
+            const data = doc.data();
+            console.log('Processing review:', doc.id, data);
+            
+            // Ensure createdAt is a valid date
+            let createdAt = new Date();
+            if (data.createdAt) {
+              if (data.createdAt instanceof Date) {
+                createdAt = data.createdAt;
+              } else if (data.createdAt.toDate) {
+                createdAt = data.createdAt.toDate();
+              } else {
+                createdAt = new Date(data.createdAt);
+              }
+            }
+
+            return {
+              id: doc.id,
+              productId: data.productId,
+              userId: data.userId,
+              userName: data.userName || 'Anonymous',
+              rating: data.rating || 0,
+              comment: data.comment || '',
+              images: data.images || [],
+              createdAt: createdAt
+            };
+          } catch (error) {
+            console.error('Error processing review:', doc.id, error);
+            return null;
+          }
         })
-        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort by date in memory
+        .filter((review): review is Review => review !== null)
+        .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()); // Sort in memory as fallback
 
       console.log('Successfully processed reviews:', reviewsList);
       setReviews(reviewsList);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Detailed error fetching reviews:', error);
-      setError('Failed to load reviews. Please try again later.');
+      
+      // Provide more specific error messages based on the error type
+      if (error.code === 'permission-denied') {
+        setError('Unable to load reviews due to permission issues. Please contact support.');
+      } else if (error.code === 'not-found') {
+        setError('Reviews collection not found. Please contact support.');
+      } else {
+        setError('Failed to load reviews. Please try again later.');
+      }
     }
   };
 
@@ -98,11 +145,34 @@ const ProductDetailPage: React.FC = () => {
       try {
         console.log('Starting to load product with ID:', id);
         
-        // Fetch product
+        // Fetch product with retry logic
         const productRef = doc(db, 'products', id);
         console.log('Product reference created:', productRef.path);
         
-        const productDoc = await getDoc(productRef);
+        let retryCount = 0;
+        const maxRetries = 3;
+        let productDoc;
+
+        while (retryCount < maxRetries) {
+          try {
+            productDoc = await getDoc(productRef);
+            if (productDoc.exists()) break; // Only break if document exists
+            retryCount++;
+            if (retryCount === maxRetries) {
+              throw new Error('Product not found after multiple retries');
+            }
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          } catch (error) {
+            retryCount++;
+            if (retryCount === maxRetries) throw error;
+            await new Promise(resolve => setTimeout(resolve, 1000 * retryCount));
+          }
+        }
+
+        if (!productDoc) {
+          throw new Error('Failed to fetch product after multiple retries');
+        }
+
         console.log('Product document fetched:', productDoc.exists() ? 'exists' : 'does not exist');
         
         if (productDoc.exists()) {
@@ -165,7 +235,6 @@ const ProductDetailPage: React.FC = () => {
     addItem({
       id: product.id,
       name: product.name,
-      price: product.price,
       quantity,
       size: product.sizes[0] || 'default',
       image: product.imageUrl,

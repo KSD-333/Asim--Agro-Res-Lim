@@ -124,6 +124,9 @@ const AdminDashboard = () => {
   const [userToDelete, setUserToDelete] = useState<string | null>(null);
   const [isDeletingUser, setIsDeletingUser] = useState(false);
   const [users, setUsers] = useState<any[]>([]);
+  const [editingProduct, setEditingProduct] = useState<Product | null>(null);
+  const [editProductData, setEditProductData] = useState<any>({});
+  const [showEditModal, setShowEditModal] = useState(false);
 
   const fetchDashboardData = async () => {
     try {
@@ -498,6 +501,36 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleEditProduct = (product: Product) => {
+    setEditingProduct(product);
+    setEditProductData({ ...product, sizes: product.sizes.join(', ') });
+    setShowEditModal(true);
+  };
+
+  const handleEditProductChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
+    const { name, value } = e.target;
+    setEditProductData((prev: any) => ({ ...prev, [name]: value }));
+  };
+
+  const handleSaveEditProduct = async () => {
+    if (!editingProduct) return;
+    try {
+      const sizesArray = editProductData.sizes.split(',').map((s: string) => s.trim());
+      await updateDoc(doc(db, 'products', editingProduct.id), {
+        ...editProductData,
+        sizes: sizesArray,
+        nitrogen: editProductData.nitrogen ? Number(editProductData.nitrogen) : undefined,
+        phosphorus: editProductData.phosphorus ? Number(editProductData.phosphorus) : undefined,
+        potassium: editProductData.potassium ? Number(editProductData.potassium) : undefined,
+      });
+      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editProductData, sizes: sizesArray } : p));
+      setShowEditModal(false);
+      setEditingProduct(null);
+    } catch (error) {
+      setError('Failed to update product.');
+    }
+  };
+
   const quickLinks = [
     {
       name: 'Analytics Overview',
@@ -808,10 +841,8 @@ const AdminDashboard = () => {
                           {new Date(order.createdAt?.toDate()).toLocaleDateString('en-GB')}
                         </p>
                       </div>
-                      <div className="flex items-center">
-                        <span className={`px-2 py-1 text-xs rounded-full ${getStatusColor(order.status)}`}>
-                          {order.status}
-                        </span>
+                      <div>
+                        <span className="font-medium text-gray-900">{order.totalAmount}</span>
                       </div>
                     </div>
                   ))}
@@ -936,7 +967,7 @@ const AdminDashboard = () => {
                 {users.length === 0 ? (
                   <p className="text-gray-600">No users found.</p>
                 ) : (
-                  users.map((user) => (
+                  (users as any[]).map((user: any) => (
                     <div key={user.id} className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
                       <div>
                         <p className="font-medium text-gray-900">{user.displayName || 'No Name'}</p>
@@ -944,13 +975,15 @@ const AdminDashboard = () => {
                         <p className="text-xs text-gray-500">Role: {user.role || 'user'}</p>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <button 
-                          onClick={() => setUserToDelete(user.id)}
-                          disabled={isDeletingUser}
-                          className="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                          {isDeletingUser && userToDelete === user.id ? 'Deleting...' : 'Delete'}
-                        </button>
+                        {user.role !== 'admin' && (
+                          <button 
+                            onClick={() => setUserToDelete(user.id)}
+                            disabled={isDeletingUser}
+                            className="px-3 py-1 bg-red-100 text-red-600 rounded-md hover:bg-red-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                          >
+                            {isDeletingUser && userToDelete === user.id ? 'Deleting...' : 'Delete'}
+                          </button>
+                        )}
                       </div>
                     </div>
                   ))
@@ -1009,6 +1042,12 @@ const AdminDashboard = () => {
                       className="absolute top-2 right-2 bg-red-600 text-white p-2 rounded-full hover:bg-red-700 transition duration-300"
                     >
                       <Trash2 className="h-5 w-5" />
+                    </button>
+                    <button
+                      onClick={() => handleEditProduct(product)}
+                      className="absolute top-2 right-12 bg-blue-600 text-white p-2 rounded-full hover:bg-blue-700 transition duration-300"
+                    >
+                      Edit
                     </button>
                   </div>
                   <div className="p-4">
@@ -1386,9 +1425,8 @@ const AdminDashboard = () => {
                           {new Date(order.createdAt?.toDate()).toLocaleDateString('en-GB')}
                         </p>
                       </div>
-                      <div className="flex items-center">
-                        <DollarSign className="h-4 w-4 text-green-500 mr-1" />
-                        <span className="font-medium text-gray-900">${order.totalAmount}</span>
+                      <div>
+                        <span className="font-medium text-gray-900">{order.totalAmount}</span>
                       </div>
                     </div>
                   ))}
@@ -1525,6 +1563,93 @@ const AdminDashboard = () => {
                 className="px-4 py-2 bg-primary-600 text-white rounded-md hover:bg-primary-700 disabled:opacity-50"
               >
                 {savingResponse ? 'Saving...' : 'Send Response'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showEditModal && editingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full mx-4">
+            <h3 className="text-lg font-semibold mb-4">Edit Product</h3>
+            <div className="space-y-4">
+              <input
+                type="text"
+                name="name"
+                value={editProductData.name}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Product Name"
+              />
+              <textarea
+                name="description"
+                value={editProductData.description}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Description"
+              />
+              <input
+                type="text"
+                name="sizes"
+                value={editProductData.sizes}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Sizes (comma-separated)"
+              />
+              <input
+                type="text"
+                name="category"
+                value={editProductData.category}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Category"
+              />
+              <input
+                type="text"
+                name="imageUrl"
+                value={editProductData.imageUrl}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Image URL"
+              />
+              <input
+                type="number"
+                name="nitrogen"
+                value={editProductData.nitrogen || ''}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Nitrogen (N) %"
+              />
+              <input
+                type="number"
+                name="phosphorus"
+                value={editProductData.phosphorus || ''}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Phosphorus (P) %"
+              />
+              <input
+                type="number"
+                name="potassium"
+                value={editProductData.potassium || ''}
+                onChange={handleEditProductChange}
+                className="w-full px-4 py-2 border border-gray-300 rounded-lg"
+                placeholder="Potassium (K) %"
+              />
+            </div>
+            <div className="flex justify-end space-x-4 mt-6">
+              <button
+                onClick={() => setShowEditModal(false)}
+                className="px-4 py-2 text-gray-600 hover:text-gray-800"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSaveEditProduct}
+                className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+              >
+                Save
               </button>
             </div>
           </div>

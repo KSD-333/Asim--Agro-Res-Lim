@@ -11,8 +11,6 @@ import {
   MessageSquare, 
   BarChart2, 
   Settings,
-  ChevronRight,
-  DollarSign,
   TrendingUp,
   AlertCircle,
   Plus,

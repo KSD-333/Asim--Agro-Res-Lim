@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, Link, useNavigate } from 'react-router-dom';
 import { ShoppingCart, ArrowLeft, Plus, Minus, Check, AlertCircle, Star, Upload, X } from 'lucide-react';
-import { doc, getDoc, collection, addDoc, query, where, orderBy, getDocs } from 'firebase/firestore';
+import { doc, getDoc, collection, addDoc, query, where, orderBy, getDocs, deleteDoc } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, storage } from '../firebase';
 import { useAuth } from '../context/AuthContext';
@@ -12,7 +12,7 @@ import Toast from '../components/Toast';
 const ProductDetailPage: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, userRole } = useAuth();
   const { addItem } = useCart();
   const [quantity, setQuantity] = useState(1);
   const [product, setProduct] = useState<Product | null>(null);
@@ -328,6 +328,18 @@ const ProductDetailPage: React.FC = () => {
       setToastMessage('Failed to submit review. Please try again.');
     } finally {
       setUploading(false);
+    }
+  };
+
+  const handleDeleteReview = async (reviewId: string) => {
+    try {
+      await deleteDoc(doc(db, 'reviews', reviewId));
+      setReviews((prev) => prev.filter((r) => r.id !== reviewId));
+      setShowToast(true);
+      setToastMessage('Review deleted successfully!');
+    } catch (error) {
+      setShowToast(true);
+      setToastMessage('Failed to delete review.');
     }
   };
 
@@ -665,6 +677,16 @@ const ProductDetailPage: React.FC = () => {
                       ))}
                     </div>
                   )}
+                  <div className="flex items-center mt-2">
+                    {(user && (review.userId === user.uid || userRole === 'admin')) && (
+                      <button
+                        onClick={() => handleDeleteReview(review.id)}
+                        className="ml-auto px-3 py-1 bg-red-100 text-red-600 rounded hover:bg-red-200 text-sm"
+                      >
+                        Delete
+                      </button>
+                    )}
+                  </div>
                 </div>
               ))
             ) : (

@@ -71,6 +71,8 @@ const AuthForm = () => {
           localStorage.removeItem('userPassword');
           localStorage.removeItem('rememberMe');
         }
+        // Store last login date
+        localStorage.setItem('lastLoginDate', new Date().toISOString());
         // Check user role and redirect accordingly
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
@@ -96,6 +98,9 @@ const AuthForm = () => {
           role: 'user',
           createdAt: new Date()
         });
+        // Store signup and last login date
+        localStorage.setItem('signupDate', new Date().toISOString());
+        localStorage.setItem('lastLoginDate', new Date().toISOString());
         setShowVerifyEmail(true);
         setLoading(false);
         return;

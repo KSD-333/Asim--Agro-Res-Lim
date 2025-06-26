@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile } from 'firebase/auth';
+import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, sendEmailVerification, sendPasswordResetEmail } from 'firebase/auth';
 import { doc, setDoc, getDoc } from 'firebase/firestore';
 import { db } from '../firebase'; // Adjust the import path according to your structure
 import { useNavigate, useLocation } from 'react-router-dom';
@@ -13,6 +13,8 @@ const AuthForm = () => {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [rememberMe, setRememberMe] = useState(false);
+  const [showVerifyEmail, setShowVerifyEmail] = useState(false);
+  const [resetEmailSent, setResetEmailSent] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const auth = getAuth();
@@ -35,16 +37,30 @@ const AuthForm = () => {
     }
   }, []);
 
+  const validatePassword = (password: string) => {
+    // At least 8 chars, 1 upper, 1 lower, 1 number, 1 special
+    return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/.test(password);
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setLoading(true);
 
     try {
+      if (!isLogin && !validatePassword(password)) {
+        setError('Password must be at least 8 characters and include uppercase, lowercase, number, and special character.');
+        setLoading(false);
+        return;
+      }
       if (isLogin) {
         // Login
         const userCredential = await signInWithEmailAndPassword(auth, email, password);
-        
+        if (!userCredential.user.emailVerified) {
+          setShowVerifyEmail(true);
+          setLoading(false);
+          return;
+        }
         // Save credentials if remember me is checked
         if (rememberMe) {
           localStorage.setItem('userEmail', email);
@@ -55,7 +71,6 @@ const AuthForm = () => {
           localStorage.removeItem('userPassword');
           localStorage.removeItem('rememberMe');
         }
-
         // Check user role and redirect accordingly
         const userDoc = await getDoc(doc(db, 'users', userCredential.user.uid));
         if (userDoc.exists()) {
@@ -63,12 +78,10 @@ const AuthForm = () => {
           if (userData.role === 'admin') {
             navigate('/admin/dashboard');
           } else {
-            // Get the redirect path from location state or default to home
             const redirectPath = location.state?.from?.pathname || '/';
             navigate(redirectPath);
           }
         } else {
-          // Get the redirect path from location state or default to home
           const redirectPath = location.state?.from?.pathname || '/';
           navigate(redirectPath);
         }
@@ -76,18 +89,16 @@ const AuthForm = () => {
         // Register
         const userCredential = await createUserWithEmailAndPassword(auth, email, password);
         await updateProfile(userCredential.user, { displayName });
-        
-        // Create user document
+        await sendEmailVerification(userCredential.user);
         await setDoc(doc(db, 'users', userCredential.user.uid), {
           displayName,
           email,
           role: 'user',
           createdAt: new Date()
         });
-
-        // Get the redirect path from location state or default to home
-        const redirectPath = location.state?.from?.pathname || '/';
-        navigate(redirectPath);
+        setShowVerifyEmail(true);
+        setLoading(false);
+        return;
       }
     } catch (error: any) {
       setError(error.message);
@@ -103,6 +114,53 @@ const AuthForm = () => {
       localStorage.removeItem('userPassword');
       localStorage.removeItem('rememberMe');
     }
+  };
+
+  const handleResendVerification = async () => {
+    if (auth.currentUser) {
+      await sendEmailVerification(auth.currentUser);
+      setError('Verification email resent!');
+    }
+  };
+
+  const handleForgotPassword = async () => {
+    if (!email) {
+      setError('Enter your email to reset password.');
+      return;
+    }
+    try {
+      await sendPasswordResetEmail(auth, email);
+      setResetEmailSent(true);
+      setError('Password reset email sent!');
+    } catch (error: any) {
+      setError(error.message);
+    }
+  };
+
+  const handleCheckVerification = async () => {
+    setError('');
+    setLoading(true);
+    await auth.currentUser?.reload();
+    if (auth.currentUser?.emailVerified) {
+      setShowVerifyEmail(false);
+      // Repeat the login redirect logic here
+      const userDoc = await getDoc(doc(db, 'users', auth.currentUser.uid));
+      if (userDoc.exists()) {
+        const userData = userDoc.data();
+        if (userData.role === 'admin') {
+          navigate('/admin/dashboard');
+        } else {
+          const redirectPath = location.state?.from?.pathname || '/';
+          navigate(redirectPath);
+        }
+      } else {
+        const redirectPath = location.state?.from?.pathname || '/';
+        navigate(redirectPath);
+      }
+    } else {
+      setError('Email is still not verified. Please check your inbox.');
+    }
+    setLoading(false);
   };
 
   return (
@@ -169,17 +227,22 @@ const AuthForm = () => {
               </div>
 
               {isLogin && (
-                <div className="flex items-center">
-                  <input
-                    type="checkbox"
-                    id="rememberMe"
-                    checked={rememberMe}
-                    onChange={handleRememberMeChange}
-                    className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
-                  />
-                  <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
-                    Remember me
-                  </label>
+                <div className="flex justify-between items-center">
+                  <div className="flex items-center">
+                    <input
+                      type="checkbox"
+                      id="rememberMe"
+                      checked={rememberMe}
+                      onChange={handleRememberMeChange}
+                      className="h-4 w-4 text-primary-600 focus:ring-primary-500 border-gray-300 rounded"
+                    />
+                    <label htmlFor="rememberMe" className="ml-2 block text-sm text-gray-700">
+                      Remember me
+                    </label>
+                  </div>
+                  <button type="button" onClick={handleForgotPassword} className="text-xs text-primary-600 hover:underline">
+                    Forgot Password?
+                  </button>
                 </div>
               )}
 
@@ -202,6 +265,20 @@ const AuthForm = () => {
                   : 'Already have an account? Sign in'}
               </button>
             </div>
+
+            {showVerifyEmail && (
+              <div className="mt-4 p-3 bg-yellow-50 text-yellow-700 rounded-md text-sm">
+                Please verify your email address. Check your inbox for a verification link.
+                <button onClick={handleResendVerification} className="ml-2 text-primary-600 underline">Resend Email</button>
+                <button onClick={handleCheckVerification} className="ml-2 text-primary-600 underline">I have verified, check again</button>
+              </div>
+            )}
+
+            {resetEmailSent && (
+              <div className="mt-4 p-3 bg-green-50 text-green-700 rounded-md text-sm">
+                Password reset email sent! Check your inbox.
+              </div>
+            )}
           </div>
         </div>
       </div>

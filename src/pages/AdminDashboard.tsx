@@ -517,13 +517,22 @@ const AdminDashboard = () => {
     try {
       const sizesArray = editProductData.sizes.split(',').map((s: string) => s.trim());
       await updateDoc(doc(db, 'products', editingProduct.id), {
-        ...editProductData,
+        name: editProductData.name,
+        description: editProductData.description,
         sizes: sizesArray,
+        category: editProductData.category,
+        imageUrl: editProductData.imageUrl,
         nitrogen: editProductData.nitrogen ? Number(editProductData.nitrogen) : undefined,
         phosphorus: editProductData.phosphorus ? Number(editProductData.phosphorus) : undefined,
         potassium: editProductData.potassium ? Number(editProductData.potassium) : undefined,
       });
-      setProducts((prev) => prev.map((p) => p.id === editingProduct.id ? { ...p, ...editProductData, sizes: sizesArray } : p));
+      setProducts((prev) =>
+        prev.map((p) =>
+          p.id === editingProduct.id
+            ? { ...p, ...editProductData, sizes: sizesArray }
+            : p
+        )
+      );
       setShowEditModal(false);
       setEditingProduct(null);
     } catch (error) {

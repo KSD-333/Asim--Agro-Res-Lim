@@ -1,4 +1,3 @@
-import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Header from './components/layout/Header';
 import Footer from './components/layout/Footer';
@@ -16,20 +15,7 @@ import { CartProvider } from './context/CartContext';
 import { useAuth } from './context/AuthContext';
 import Profile from './pages/Profile';
 import ProtectedRoute from './components/ProtectedRoute';
-
-// Admin Route Component
-const AdminRoute = ({ children }: { children: JSX.Element }) => {
-  const { user, userRole, loading } = useAuth();
-  
-  if (loading) {
-    return <LoadingSpinner />;
-  }
-  
-  if (!user || userRole !== 'admin') {
-    return <Navigate to="/login" state={{ from: location }} replace />;
-  }
-  return children;
-};
+import { routeMap } from './routeMap';
 
 function App() {
   const { user, userRole, loading } = useAuth();
@@ -46,16 +32,16 @@ function App() {
           <main className="flex-grow">
             <Routes>
               {/* Public Routes */}
-              <Route path="/" element={<HomePage />} />
-              <Route path="/products" element={<ProductsPage />} />
-              <Route path="/products/:id" element={<ProductDetailPage />} />
-              <Route path="/about" element={<AboutPage />} />
-              <Route path="/contact" element={<ContactPage />} />
-              <Route path="/login" element={<Login />} />
+              <Route path={`/${routeMap.home}`} element={<HomePage />} />
+              <Route path={`/${routeMap.products}`} element={<ProductsPage />} />
+              <Route path={`/${routeMap.products}/:id`} element={<ProductDetailPage />} />
+              <Route path={`/${routeMap.about}`} element={<AboutPage />} />
+              <Route path={`/${routeMap.contact}`} element={<ContactPage />} />
+              <Route path={`/${routeMap.login}`} element={<Login />} />
 
               {/* Protected Routes */}
               <Route
-                path="/cart"
+                path={`/${routeMap.cart}`}
                 element={
                   <ProtectedRoute>
                     <Cart />
@@ -63,7 +49,7 @@ function App() {
                 }
               />
               <Route
-                path="/profile"
+                path={`/${routeMap.profile}`}
                 element={
                   <ProtectedRoute>
                     <Profile />
@@ -71,7 +57,7 @@ function App() {
                 }
               />
               <Route
-                path="/dealers"
+                path={`/${routeMap.dealers}`}
                 element={
                   <ProtectedRoute>
                     <DealerPage />
@@ -81,83 +67,75 @@ function App() {
 
               {/* Admin Routes */}
               <Route
-                path="/admin"
+                path={`/${routeMap.adminDashboard}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/dashboard"
+                path={`/${routeMap.adminUsers}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/users"
+                path={`/${routeMap.adminOrders}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/orders"
+                path={`/${routeMap.adminProducts}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/products"
+                path={`/${routeMap.adminForms}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/forms"
+                path={`/${routeMap.adminMessages}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/messages"
+                path={`/${routeMap.adminFeedback}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/feedback"
+                path={`/${routeMap.adminProductsNew}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
               <Route
-                path="/admin/products/new"
+                path={`/${routeMap.adminAnalytics}`}
                 element={
-                  <AdminRoute>
+                  <ProtectedRoute requiredRole="admin">
                     <AdminDashboard />
-                  </AdminRoute>
-                }
-              />
-              <Route
-                path="/admin/analytics"
-                element={
-                  <AdminRoute>
-                    <AdminDashboard />
-                  </AdminRoute>
+                  </ProtectedRoute>
                 }
               />
 

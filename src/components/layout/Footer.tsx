@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { Leaf, Facebook, Instagram, Twitter, Mail, Phone, MapPin } from 'lucide-react';
+import { routeMap } from '../../routeMap';
 
 const Footer: React.FC = () => {
   return (
@@ -47,7 +48,7 @@ const Footer: React.FC = () => {
             <ul className="space-y-2">
               <li>
                 <Link
-                  to="/"
+                  to={`/${routeMap.home}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Home
@@ -55,7 +56,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/products"
+                  to={`/${routeMap.products}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Products
@@ -63,7 +64,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/about"
+                  to={`/${routeMap.about}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   About Us
@@ -71,7 +72,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/contact"
+                  to={`/${routeMap.contact}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Contact
@@ -79,7 +80,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/dealers"
+                  to={`/${routeMap.dealers}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Become a Dealer
@@ -94,7 +95,7 @@ const Footer: React.FC = () => {
             <ul className="space-y-2">
               <li>
                 <Link
-                  to="/products?category=Macronutrient"
+                  to={`/${routeMap.products}?category=Macronutrient`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Macronutrients
@@ -102,7 +103,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/products?category=Micronutrient"
+                  to={`/${routeMap.products}?category=Micronutrient`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Micronutrients
@@ -110,7 +111,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/products?category=Organic"
+                  to={`/${routeMap.products}?category=Organic`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Organic Fertilizers
@@ -118,7 +119,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/products?category=Specialty"
+                  to={`/${routeMap.products}?category=Specialty`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   Specialty Products
@@ -126,7 +127,7 @@ const Footer: React.FC = () => {
               </li>
               <li>
                 <Link
-                  to="/products"
+                  to={`/${routeMap.products}`}
                   className="text-primary-100 hover:text-white transition duration-200"
                 >
                   View All Products

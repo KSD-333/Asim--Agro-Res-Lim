@@ -58,7 +58,7 @@ const ContactPage: React.FC = () => {
       }, 5000);
     } catch (error) {
       console.error('Error submitting form:', error);
-      setError('Failed to submit form. Please try again.');
+      setError('Failed to submit form. Please check whether you logged in or not and try again.');
     } finally {
       setLoading(false);
     }

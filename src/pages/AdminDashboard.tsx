@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { Timestamp } from 'firebase/firestore';
 import { auth } from '../firebase';
+import { routeMap } from '../routeMap';
 
 interface DashboardStats {
   totalUsers: number;
@@ -541,37 +542,37 @@ const AdminDashboard = () => {
   const quickLinks = [
     {
       name: 'Analytics Overview',
-      href: '/admin/analytics',
+      href: `/${routeMap.adminAnalytics}`,
       icon: <BarChart2 className="h-6 w-6" />,
       color: 'bg-blue-500'
     },
     {
       name: 'Products',
-      href: '/admin/products',
+      href: `/${routeMap.adminProducts}`,
       icon: <Package className="h-6 w-6" />,
       color: 'bg-purple-500'
     },
     {
       name: 'Orders',
-      href: '/admin/orders',
+      href: `/${routeMap.adminOrders}`,
       icon: <ShoppingCart className="h-6 w-6" />,
       color: 'bg-green-500'
     },
     {
       name: 'Users',
-      href: '/admin/users',
+      href: `/${routeMap.adminUsers}`,
       icon: <Users className="h-6 w-6" />,
       color: 'bg-yellow-500'
     },
     {
       name: 'Forms',
-      href: '/admin/forms',
+      href: `/${routeMap.adminForms}`,
       icon: <FileText className="h-6 w-6" />,
       color: 'bg-indigo-500'
     },
     {
       name: 'Messages',
-      href: '/admin/messages',
+      href: `/${routeMap.adminMessages}`,
       icon: <MessageSquare className="h-6 w-6" />,
       color: 'bg-pink-500'
     }
@@ -752,7 +753,7 @@ const AdminDashboard = () => {
 
   const renderContent = () => {
     switch (currentPath) {
-      case '/admin/analytics':
+      case `/${routeMap.adminAnalytics}`:
         return (
           <div className="space-y-6">
             {/* Overview Cards */}
@@ -833,7 +834,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
                   <button
-                    onClick={() => navigate('/admin/orders')}
+                    onClick={() => navigate(`/${routeMap.adminOrders}`)}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     View All
@@ -861,7 +862,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Recent Messages</h2>
                   <button
-                    onClick={() => navigate('/admin/messages')}
+                    onClick={() => navigate(`/${routeMap.adminMessages}`)}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     View All
@@ -950,7 +951,7 @@ const AdminDashboard = () => {
           </div>
         );
 
-      case '/admin/users':
+      case `/${routeMap.adminUsers}`:
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Users Management</h2>
@@ -1028,10 +1029,10 @@ const AdminDashboard = () => {
           </div>
         );
 
-      case '/admin/orders':
+      case `/${routeMap.adminOrders}`:
         return renderOrderManagement();
 
-      case '/admin/products':
+      case `/${routeMap.adminProducts}`:
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Products Management</h2>
@@ -1089,7 +1090,7 @@ const AdminDashboard = () => {
           </div>
         );
 
-      case '/admin/products/new':
+      case `/${routeMap.adminProducts}/new`:
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Add New Product</h2>
@@ -1247,7 +1248,7 @@ const AdminDashboard = () => {
           </div>
         );
 
-      case '/admin/forms':
+      case `/${routeMap.adminForms}`:
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Contact Forms</h2>
@@ -1318,7 +1319,7 @@ const AdminDashboard = () => {
           </div>
         );
 
-      case '/admin/messages':
+      case `/${routeMap.adminMessages}`:
         return (
           <div className="bg-white rounded-xl shadow-md p-6">
             <h2 className="text-xl font-semibold text-gray-900 mb-6">Order Messages</h2>
@@ -1417,7 +1418,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Recent Orders</h2>
                   <button
-                    onClick={() => navigate('/admin/orders')}
+                    onClick={() => navigate(`/${routeMap.adminOrders}`)}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     View All
@@ -1445,7 +1446,7 @@ const AdminDashboard = () => {
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-semibold text-gray-900">Recent Users</h2>
                   <button
-                    onClick={() => navigate('/admin/users')}
+                    onClick={() => navigate(`/${routeMap.adminUsers}`)}
                     className="text-sm text-primary-600 hover:text-primary-700"
                   >
                     View All
@@ -1476,14 +1477,14 @@ const AdminDashboard = () => {
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <button
-                    onClick={() => navigate('/admin/products/new')}
+                    onClick={() => navigate(`/${routeMap.adminProducts}/new`)}
                     className="flex items-center justify-center p-4 bg-primary-50 text-primary-600 rounded-lg hover:bg-primary-100 transition-colors"
                   >
                     <Package className="h-5 w-5 mr-2" />
                     Add New Product
                   </button>
                   <button
-                    onClick={() => navigate('/admin/orders')}
+                    onClick={() => navigate(`/${routeMap.adminOrders}`)}
                     className="flex items-center justify-center p-4 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 transition-colors"
                   >
                     <ShoppingCart className="h-5 w-5 mr-2" />

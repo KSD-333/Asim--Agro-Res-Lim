@@ -5,6 +5,7 @@ import { Trash2, Plus, Minus, Save } from 'lucide-react';
 import { getAuth } from 'firebase/auth';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '../firebase';
+import { routeMap } from '../routeMap';
 
 interface ShippingAddress {
   name: string;
@@ -197,15 +198,20 @@ const Cart: React.FC = () => {
 
   if (items.length === 0) {
     return (
-      <div className="container mx-auto px-4 py-8">
-        <h1 className="text-2xl font-bold mb-4">Your Cart</h1>
-        <p className="text-gray-600">Your cart is empty.</p>
+      <div className="container mx-auto px-4 py-16 flex flex-col items-center justify-center min-h-[60vh]">
+        <p className="text-gray-500 mb-6 text-center max-w-md">Looks like you haven't added anything to your cart yet. Start exploring our products and add your favorites!</p>
+        <button
+          onClick={() => navigate(`/${routeMap.products}`)}
+          className="bg-green-600 hover:bg-green-700 text-white px-6 py-3 rounded-md text-lg font-semibold shadow transition-colors"
+        >
+          Browse Products
+        </button>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto px-4 py-8">
+    <div className="container mx-auto px-4 py-8 ">
       <h1 className="text-2xl font-bold mb-6">Your Cart</h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">

@@ -5,6 +5,7 @@ import { getAuth, signOut, onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { db } from '../../firebase';
 import { useCart } from '../../context/CartContext';
+import { routeMap } from '../../routeMap';
 
 interface HeaderProps {
   user: any;
@@ -78,12 +79,22 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
     }
   };
 
+  // Handler for protected navigation
+  const handleProtectedNav = (path: string) => (e: React.MouseEvent) => {
+    e.preventDefault();
+    if (!user) {
+      navigate(`/${routeMap.login}`, { state: { from: path } });
+    } else {
+      navigate(path);
+    }
+  };
+
   const navLinks = [
-    { name: 'Home', path: '/' },
-    { name: 'Products', path: '/products' },
-    { name: 'About Us', path: '/about' },
-    { name: 'Contact', path: '/contact' },
-    { name: 'Become a Dealer', path: '/dealers' }
+    { name: 'Home', path: `/${routeMap.home}` },
+    { name: 'Products', path: `/${routeMap.products}` },
+    { name: 'About Us', path: `/${routeMap.about}` },
+    { name: 'Contact', path: `/${routeMap.contact}` },
+    { name: 'Become a Dealer', path: `/${routeMap.dealers}` }
   ];
 
   return (
@@ -102,25 +113,41 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
 
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center space-x-8">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`text-sm font-medium transition-colors ${
-                  location.pathname === link.path
-                    ? 'text-primary-600'
-                    : 'text-gray-600 hover:text-primary-600'
-                }`}
-              >
-                {link.name}
-              </Link>
-            ))}
+            {navLinks.map((link) =>
+              link.name === 'Become a Dealer' ? (
+                <a
+                  key={link.path}
+                  href={link.path}
+                  onClick={handleProtectedNav(link.path)}
+                  className={`text-sm font-medium transition-colors ${
+                    location.pathname === link.path
+                      ? 'text-primary-600'
+                      : 'text-gray-600 hover:text-primary-600'
+                  }`}
+                >
+                  {link.name}
+                </a>
+              ) : (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`text-sm font-medium transition-colors ${
+                    location.pathname === link.path
+                      ? 'text-primary-600'
+                      : 'text-gray-600 hover:text-primary-600'
+                  }`}
+                >
+                  {link.name}
+                </Link>
+              )
+            )}
           </nav>
 
           {/* User Actions */}
           <div className="hidden md:flex items-center space-x-4">
-            <Link
-              to="/cart"
+            <a
+              href={`/${routeMap.cart}`}
+              onClick={handleProtectedNav(`/${routeMap.cart}`)}
               className="relative text-gray-600 hover:text-primary-600"
             >
               <ShoppingCart className="h-6 w-6" />
@@ -129,7 +156,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                   {totalItems}
                 </span>
               )}
-            </Link>
+            </a>
 
             {user ? (
               <div ref={dropdownRef} className="relative">
@@ -143,7 +170,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                 {isDropdownOpen && (
                   <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                     <Link
-                      to="/profile"
+                      to={`/${routeMap.profile}`}
                       className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                       onClick={() => setIsDropdownOpen(false)}
                     >
@@ -152,7 +179,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                     </Link>
                     {userRole === 'admin' && (
                       <Link
-                        to="/admin/dashboard"
+                        to={`/${routeMap.adminDashboard}`}
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsDropdownOpen(false)}
                       >
@@ -174,7 +201,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
             ) : (
               <div className="flex items-center space-x-4">
                 <Link
-                  to="/login"
+                  to={`/${routeMap.login}`}
                   className="text-gray-600 hover:text-primary-600"
                 >
                   Login
@@ -200,25 +227,41 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
         {isMenuOpen && (
           <div className="md:hidden mt-4 py-4 border-t">
             <nav className="flex flex-col space-y-4">
-              {navLinks.map((link) => (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`text-sm font-medium transition-colors ${
-                    location.pathname === link.path
-                      ? 'text-primary-600'
-                      : 'text-gray-600 hover:text-primary-600'
-                  }`}
-                >
-                  {link.name}
-                </Link>
-              ))}
-              <Link
-                to="/cart"
+              {navLinks.map((link) =>
+                link.name === 'Become a Dealer' ? (
+                  <a
+                    key={link.path}
+                    href={link.path}
+                    onClick={handleProtectedNav(link.path)}
+                    className={`text-sm font-medium transition-colors ${
+                      location.pathname === link.path
+                        ? 'text-primary-600'
+                        : 'text-gray-600 hover:text-primary-600'
+                    }`}
+                  >
+                    {link.name}
+                  </a>
+                ) : (
+                  <Link
+                    key={link.path}
+                    to={link.path}
+                    className={`text-sm font-medium transition-colors ${
+                      location.pathname === link.path
+                        ? 'text-primary-600'
+                        : 'text-gray-600 hover:text-primary-600'
+                    }`}
+                  >
+                    {link.name}
+                  </Link>
+                )
+              )}
+              <a
+                href={`/${routeMap.cart}`}
+                onClick={handleProtectedNav(`/${routeMap.cart}`)}
                 className="text-sm font-medium text-gray-600 hover:text-primary-600 transition-colors"
               >
                 Cart
-              </Link>
+              </a>
               {user ? (
                 <div ref={dropdownRef} className="relative">
                   <button 
@@ -231,7 +274,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                   {isDropdownOpen && (
                     <div className="absolute right-0 mt-2 w-48 bg-white rounded-md shadow-lg py-1 z-50">
                       <Link
-                        to="/profile"
+                        to={`/${routeMap.profile}`}
                         className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                         onClick={() => setIsDropdownOpen(false)}
                       >
@@ -240,7 +283,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
                       </Link>
                       {userRole === 'admin' && (
                         <Link
-                          to="/admin/dashboard"
+                          to={`/${routeMap.adminDashboard}`}
                           className="flex items-center px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
                           onClick={() => setIsDropdownOpen(false)}
                         >
@@ -262,7 +305,7 @@ const Header: React.FC<HeaderProps> = ({ user, userRole }) => {
               ) : (
                 <div className="flex items-center space-x-4">
                   <Link
-                    to="/login"
+                    to={`/${routeMap.login}`}
                     className="text-gray-600 hover:text-primary-600"
                   >
                     Login

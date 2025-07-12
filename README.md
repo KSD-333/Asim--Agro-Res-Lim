@@ -27,5 +27,5 @@ Asim Agro is a modern e-commerce web application built with **React** and **Vite
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/yourusername/asim-agro.git
-cd asim-agro
+git clone https://github.com/KSD-333/Asim--Agro-Res-Lim.git
+

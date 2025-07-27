@@ -38,14 +38,10 @@ Asim Agro is a modern e-commerce web application built with **React** and **Vite
 ### 1. Clone the repository
 ```bash
 git clone https://github.com/KSD-333/Asim--Agro-Res-Lim.git
-<<<<<<< HEAD
-
-=======
+cd Asim--Agro-Res-Lim
 ```
 
-### How To Start 
-
-**Create one .env File With stuctre in main Folder**
+**Create one .env File With structure in main Folder**
 
 VITE_FIREBASE_API_KEY=your_api_key_here
 VITE_FIREBASE_AUTH_DOMAIN=your_auth_domain_here
@@ -62,5 +58,10 @@ VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id_here
 npm install
 npm run dev
 ```
- ###  🚀 Your Agricluture website with firebase connectivity is ready  
->>>>>>> b221790ccecd2608e10c8beab53667e197449f33
+
+### If you get an error during npm install, try:
+```bash
+npm install --legacy-peer-deps
+```
+
+### 🚀 Your Agriculture website with firebase connectivity is ready

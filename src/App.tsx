@@ -32,7 +32,7 @@ function App() {
           <main className="flex-grow">
             <Routes>
               {/* Public Routes */}
-              <Route path={`/${routeMap.home}`} element={<HomePage />} />
+              <Route path={"/"} element={<HomePage />} />
               <Route path={`/${routeMap.products}`} element={<ProductsPage />} />
               <Route path={`/${routeMap.products}/:id`} element={<ProductDetailPage />} />
               <Route path={`/${routeMap.about}`} element={<AboutPage />} />

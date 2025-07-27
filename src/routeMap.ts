@@ -10,7 +10,6 @@ export const routeMap = {
   adminProductsNew: "h8i9j0dsfk1",
   adminAnalytics: "i9j0k1l2dsfdfs",
   // Public & Protected
-  home: "h1os2m3sdsesfd4",
   products: "p1dsfdfgbr2o3d4",
   productDetail: "p5d6fgdfsfdt7l8",
   about: "a9b8o7udfddfsd6",
@@ -18,7 +17,8 @@ export const routeMap = {
   login: "l1o2g3idffdbvgf4",
   cart: "c5a6r7tvfdvdfv8",
   profile: "p9r8o7f6dfvfd",
-  dealers: "d1e2a3ldfvdfvd4"
+  dealers: "d1e2a3ldfvdfvd4",
+  home: "" // Add this line for the root path
 };
 
 export const reverseRouteMap = Object.fromEntries(
